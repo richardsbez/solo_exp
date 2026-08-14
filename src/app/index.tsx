@@ -1,98 +1,208 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
+import { AttributeCell } from '@/components/status/attribute-cell';
+import { NeonPanel } from '@/components/status/neon-panel';
+import { NeonXpBar } from '@/components/status/neon-xp-bar';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { NeonTextGlow, SoloColors, SoloSpacing } from '@/constants/solo-theme';
+import { MaxContentWidth } from '@/constants/theme';
+import { usePlayer } from '@/hooks/usePlayer';
+import type { AttributeKey } from '@/types/game';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
+/** Ordem de exibição na grade: pares (esquerda/direita) seguindo o padrão
+ * das imagens de referência — STR/VIT na primeira linha, AGI/INT na
+ * segunda, e PER sozinho (ímpar) ocupando a linha inteira por último. */
+const ATTRIBUTE_DISPLAY_ORDER: AttributeKey[] = [
+  'strength',
+  'vitality',
+  'agility',
+  'intelligence',
+  'perception',
+];
+
+export default function StatusScreen() {
+  const { player, loading, xpPercentage } = usePlayer();
+
+  if (loading || !player) {
     return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
+      <View style={[styles.screen, styles.centered]}>
+        <ActivityIndicator color={SoloColors.neonPrimary} size="large" />
+      </View>
     );
   }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
 
-export default function HomeScreen() {
+  const xpRemaining = Math.max(0, player.xpToNextLevel - player.currentXP);
+
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.screen}>
+      {/* Glow ambiente no topo — só decorativo, não interfere no layout. */}
+      <View pointerEvents="none" style={styles.ambientGlow} />
+
       <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}>
+          <NeonPanel intensity="strong" style={styles.mainPanel}>
+            {/* Header: título "STATUS" com divisor, igual ao padrão das
+                caixas de notificação nas imagens de referência. */}
+            <View style={styles.headerRow}>
+              <ThemedText style={styles.headerDot}>◆</ThemedText>
+              <ThemedText type="smallBold" style={[styles.headerTitle, NeonTextGlow]}>
+                STATUS
+              </ThemedText>
+            </View>
+            <View style={styles.divider} />
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+            {/* Identidade: nível em destaque + nome / próxima evolução. */}
+            <View style={styles.identityRow}>
+              <View style={styles.levelBlock}>
+                <ThemedText style={[styles.levelNumber, NeonTextGlow]}>{player.level}</ThemedText>
+                <ThemedText type="small" style={styles.levelCaption}>
+                  LEVEL
+                </ThemedText>
+              </View>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+              <View style={styles.identityDetails}>
+                <View style={styles.identityLine}>
+                  <ThemedText type="small" style={styles.identityLabel}>
+                    CAÇADOR
+                  </ThemedText>
+                  <ThemedText type="smallBold" style={styles.identityValue} numberOfLines={1}>
+                    {player.name}
+                  </ThemedText>
+                </View>
+                <View style={styles.identityLine}>
+                  <ThemedText type="small" style={styles.identityLabel}>
+                    PRÓXIMA EVOLUÇÃO
+                  </ThemedText>
+                  <ThemedText type="smallBold" style={styles.identityValue}>
+                    {xpRemaining} XP
+                  </ThemedText>
+                </View>
+              </View>
+            </View>
 
-        {Platform.OS === 'web' && <WebBadge />}
+            {/* Barra de XP — estilo "vazado" das barras de HP/MP de
+                referência, preenchimento animado via Reanimated. */}
+            <NeonXpBar
+              percentage={xpPercentage}
+              currentXP={player.currentXP}
+              xpToNextLevel={player.xpToNextLevel}
+            />
+
+            <View style={styles.divider} />
+
+            {/* Grade de atributos, 2 colunas. */}
+            <View style={styles.attributeGrid}>
+              {ATTRIBUTE_DISPLAY_ORDER.map((key, index) => (
+                <AttributeCell
+                  key={key}
+                  attribute={key}
+                  value={player.attributes[key]}
+                  fullWidth={index === ATTRIBUTE_DISPLAY_ORDER.length - 1}
+                />
+              ))}
+            </View>
+          </NeonPanel>
+        </ScrollView>
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
+    backgroundColor: SoloColors.backgroundBase,
+  },
+  centered: {
     justifyContent: 'center',
-    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ambientGlow: {
+    position: 'absolute',
+    top: -120,
+    left: '50%',
+    marginLeft: -180,
+    width: 360,
+    height: 240,
+    borderRadius: 180,
+    backgroundColor: SoloColors.neonPrimary,
+    opacity: 0.08,
   },
   safeArea: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
   },
-  heroSection: {
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: SoloSpacing.md,
+    paddingVertical: SoloSpacing.lg,
+  },
+  mainPanel: {
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    padding: SoloSpacing.lg,
+    gap: SoloSpacing.md,
+  },
+  headerRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: SoloSpacing.xs,
+  },
+  headerDot: {
+    color: SoloColors.neonPrimary,
+    fontSize: 10,
+  },
+  headerTitle: {
+    color: SoloColors.textPrimary,
+    letterSpacing: 4,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: SoloColors.neonPrimaryDim,
+  },
+  identityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SoloSpacing.md,
+  },
+  levelBlock: {
+    alignItems: 'center',
+    minWidth: 72,
+  },
+  levelNumber: {
+    color: SoloColors.textPrimary,
+    fontSize: 44,
+    fontWeight: '700',
+    lineHeight: 48,
+  },
+  levelCaption: {
+    color: SoloColors.textSecondary,
+    letterSpacing: 2,
+  },
+  identityDetails: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+    gap: SoloSpacing.xs,
   },
-  title: {
-    textAlign: 'center',
+  identityLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  code: {
-    textTransform: 'uppercase',
+  identityLabel: {
+    color: SoloColors.textMuted,
+    letterSpacing: 0.5,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  identityValue: {
+    color: SoloColors.textPrimary,
+  },
+  attributeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: '4%',
   },
 });

@@ -1,18 +1,26 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
-
+// Impede a splash nativa de sumir sozinha assim que o JS carrega — a
+// removemos manualmente no useEffect abaixo, assim que a tela de Status
+// já montou. Sem tela de boas-vindas, sem tabs, sem logo da Expo: só o
+// "Sistema" aparecendo direto.
 SplashScreen.preventAutoHideAsync();
 
-export default function TabLayout() {
+export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    SplashScreen.hideAsync();
+  }, []);
+
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
+      {/* Stack sem header: uma rota só (a tela de Status), sem barra de
+          navegação nem abas por cima do app. */}
+      <Stack screenOptions={{ headerShown: false }} />
     </ThemeProvider>
   );
 }

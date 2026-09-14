@@ -1,112 +1,147 @@
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AttributeCell } from '@/components/status/attribute-cell';
-import { NeonPanel } from '@/components/status/neon-panel';
-import { NeonXpBar } from '@/components/status/neon-xp-bar';
-import { ThemedText } from '@/components/themed-text';
-import { NeonTextGlow, SoloColors, SoloSpacing } from '@/constants/solo-theme';
-import { MaxContentWidth } from '@/constants/theme';
-import { usePlayer } from '@/hooks/usePlayer';
-import type { AttributeKey } from '@/types/game';
+// ---------------------------------------------------------------------------
+// Tela de Status — reproduz o design do Figma (janela de status estilo
+// "Solo Leveling"). Escopo puramente visual: os dados abaixo são mockados,
+// sem nenhuma leitura do usePlayer() ainda. Isso entra numa próxima etapa,
+// quando ligarmos esse componente ao hook real.
+// ---------------------------------------------------------------------------
 
-/** Ordem de exibição na grade: pares (esquerda/direita) seguindo o padrão
- * das imagens de referência — STR/VIT na primeira linha, AGI/INT na
- * segunda, e PER sozinho (ímpar) ocupando a linha inteira por último. */
-const ATTRIBUTE_DISPLAY_ORDER: AttributeKey[] = [
-  'strength',
-  'vitality',
-  'agility',
-  'intelligence',
-  'perception',
-];
+const mockPlayer = {
+  level: 18,
+  name: 'Steve',
+  title: 'Romano',
+  strBarPercent: 15,
+  mpBarPercent: 70,
+  stats: {
+    str: 17,
+    agi: 3,
+    per: 3,
+    vit: 2,
+    int: 333,
+  },
+  abilityPoints: 3,
+};
+
+// Paleta fixa desse HUD — intencionalmente não segue o Colors claro/escuro
+// do app (constants/theme.ts). É a "janela do sistema", sempre escura,
+// igual no anime, independente do tema do dispositivo.
+const Hud = {
+  background: '#05070d',
+  panelBorder: 'rgba(150, 190, 255, 0.28)',
+  textPrimary: '#e7edff',
+  textLabel: '#8ea0c9',
+  glow: '#6fa8ff',
+  barTrack: 'rgba(150, 190, 255, 0.16)',
+  barFill: '#e7edff',
+};
 
 export default function StatusScreen() {
-  const { player, loading, xpPercentage } = usePlayer();
-
-  if (loading || !player) {
-    return (
-      <View style={[styles.screen, styles.centered]}>
-        <ActivityIndicator color={SoloColors.neonPrimary} size="large" />
-      </View>
-    );
-  }
-
-  const xpRemaining = Math.max(0, player.xpToNextLevel - player.currentXP);
-
   return (
     <View style={styles.screen}>
-      {/* Glow ambiente no topo — só decorativo, não interfere no layout. */}
-      <View pointerEvents="none" style={styles.ambientGlow} />
-
-      <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="light" />
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
-          <NeonPanel intensity="strong" style={styles.mainPanel}>
-            {/* Header: título "STATUS" com divisor, igual ao padrão das
-                caixas de notificação nas imagens de referência. */}
-            <View style={styles.headerRow}>
-              <ThemedText style={styles.headerDot}>◆</ThemedText>
-              <ThemedText type="smallBold" style={[styles.headerTitle, NeonTextGlow]}>
-                STATUS
-              </ThemedText>
+          {/* Cabeçalho */}
+          <View style={styles.headerBox}>
+            <Text style={styles.headerText}>STATUS</Text>
+            <Text style={styles.headerMenu}>•••</Text>
+          </View>
+
+          {/* Nível + identidade */}
+          <View style={styles.identityRow}>
+            <View style={styles.levelBlock}>
+              <Text style={styles.levelNumber}>{mockPlayer.level}</Text>
+              <Text style={styles.levelLabel}>LEVEL</Text>
             </View>
-            <View style={styles.divider} />
 
-            {/* Identidade: nível em destaque + nome / próxima evolução. */}
-            <View style={styles.identityRow}>
-              <View style={styles.levelBlock}>
-                <ThemedText style={[styles.levelNumber, NeonTextGlow]}>{player.level}</ThemedText>
-                <ThemedText type="small" style={styles.levelCaption}>
-                  LEVEL
-                </ThemedText>
+            <View style={styles.identityDetails}>
+              <View style={styles.identityLine}>
+                <Text style={styles.identityLabel}>NAME:</Text>
+                <Text style={styles.identityValue}>{mockPlayer.name}</Text>
               </View>
-
-              <View style={styles.identityDetails}>
-                <View style={styles.identityLine}>
-                  <ThemedText type="small" style={styles.identityLabel}>
-                    CAÇADOR
-                  </ThemedText>
-                  <ThemedText type="smallBold" style={styles.identityValue} numberOfLines={1}>
-                    {player.name}
-                  </ThemedText>
-                </View>
-                <View style={styles.identityLine}>
-                  <ThemedText type="small" style={styles.identityLabel}>
-                    PRÓXIMA EVOLUÇÃO
-                  </ThemedText>
-                  <ThemedText type="smallBold" style={styles.identityValue}>
-                    {xpRemaining} XP
-                  </ThemedText>
-                </View>
+              <View style={styles.identityLine}>
+                <Text style={styles.identityLabel}>TITLE:</Text>
+                <Text style={styles.identityValue}>{mockPlayer.title}</Text>
               </View>
             </View>
+          </View>
 
-            {/* Barra de XP — estilo "vazado" das barras de HP/MP de
-                referência, preenchimento animado via Reanimated. */}
-            <NeonXpBar
-              percentage={xpPercentage}
-              currentXP={player.currentXP}
-              xpToNextLevel={player.xpToNextLevel}
-            />
-
-            <View style={styles.divider} />
-
-            {/* Grade de atributos, 2 colunas. */}
-            <View style={styles.attributeGrid}>
-              {ATTRIBUTE_DISPLAY_ORDER.map((key, index) => (
-                <AttributeCell
-                  key={key}
-                  attribute={key}
-                  value={player.attributes[key]}
-                  fullWidth={index === ATTRIBUTE_DISPLAY_ORDER.length - 1}
-                />
-              ))}
+          {/* Barras STR / MP */}
+          <View style={styles.panel}>
+            <View style={styles.barsRow}>
+              <StatBar icon="plus" label="STR" percent={mockPlayer.strBarPercent} />
+              <StatBar icon="zap" label="MP" percent={mockPlayer.mpBarPercent} />
             </View>
-          </NeonPanel>
+          </View>
+
+          {/* Grade de atributos */}
+          <View style={[styles.panel, styles.statsPanel]}>
+            <View style={styles.statsRow}>
+              <StatItem label="STR" value={mockPlayer.stats.str} />
+              <StatItem label="VIT" value={mockPlayer.stats.vit} />
+            </View>
+            <View style={styles.statsRow}>
+              <StatItem label="AGI" value={mockPlayer.stats.agi} />
+              <StatItem label="INT" value={mockPlayer.stats.int} />
+            </View>
+            <View style={styles.statsRow}>
+              <StatItem label="PER" value={mockPlayer.stats.per} />
+              <View style={styles.statItem}>
+                <Text style={styles.statLabelMultiline}>
+                  Available{'\n'}Ability{'\n'}Points:
+                </Text>
+                <Text style={styles.statValue}>{mockPlayer.abilityPoints}</Text>
+              </View>
+            </View>
+          </View>
         </ScrollView>
+
+        {/* Barra inferior — só visual por enquanto, sem navegação real */}
+        <View style={styles.bottomNav}>
+          <Feather name="square" size={22} color={Hud.textPrimary} style={styles.diamondIcon} />
+          <Feather name="check-square" size={22} color={Hud.textPrimary} />
+          <Feather name="calendar" size={22} color={Hud.textPrimary} />
+          <Feather name="message-circle" size={22} color={Hud.textPrimary} />
+          <Feather name="shopping-cart" size={22} color={Hud.textPrimary} />
+        </View>
       </SafeAreaView>
+    </View>
+  );
+}
+
+function StatBar({
+  icon,
+  label,
+  percent,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  percent: number;
+}) {
+  return (
+    <View style={styles.barCell}>
+      <View style={styles.barCellTop}>
+        <Feather name={icon} size={15} color={Hud.textPrimary} />
+        <View style={styles.barTrack}>
+          <View style={[styles.barFill, { width: `${percent}%` }]} />
+        </View>
+      </View>
+      <Text style={styles.barLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function StatItem({ label, value }: { label: string; value: number | string }) {
+  return (
+    <View style={styles.statItem}>
+      <Text style={styles.statLabel}>{label}:</Text>
+      <Text style={styles.statValue}>{value}</Text>
     </View>
   );
 }
@@ -114,95 +149,177 @@ export default function StatusScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: SoloColors.backgroundBase,
-  },
-  centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  ambientGlow: {
-    position: 'absolute',
-    top: -120,
-    left: '50%',
-    marginLeft: -180,
-    width: 360,
-    height: 240,
-    borderRadius: 180,
-    backgroundColor: SoloColors.neonPrimary,
-    opacity: 0.08,
+    backgroundColor: Hud.background,
   },
   safeArea: {
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: SoloSpacing.md,
-    paddingVertical: SoloSpacing.lg,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
+    gap: 20,
   },
-  mainPanel: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    padding: SoloSpacing.lg,
-    gap: SoloSpacing.md,
-  },
-  headerRow: {
-    flexDirection: 'row',
+
+  // Cabeçalho
+  headerBox: {
+    borderWidth: 1,
+    borderColor: Hud.panelBorder,
+    borderRadius: 4,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: SoloSpacing.xs,
   },
-  headerDot: {
-    color: SoloColors.neonPrimary,
-    fontSize: 10,
+  headerText: {
+    color: Hud.textPrimary,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 8,
   },
-  headerTitle: {
-    color: SoloColors.textPrimary,
-    letterSpacing: 4,
+  headerMenu: {
+    position: 'absolute',
+    right: 14,
+    top: '50%',
+    transform: [{ translateY: -8 }],
+    color: Hud.textLabel,
+    fontSize: 14,
+    letterSpacing: 1,
   },
-  divider: {
-    height: 1,
-    backgroundColor: SoloColors.neonPrimaryDim,
-  },
+
+  // Nível + identidade
   identityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SoloSpacing.md,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    gap: 24,
   },
   levelBlock: {
     alignItems: 'center',
-    minWidth: 72,
   },
   levelNumber: {
-    color: SoloColors.textPrimary,
-    fontSize: 44,
-    fontWeight: '700',
-    lineHeight: 48,
+    color: Hud.textPrimary,
+    fontSize: 64,
+    fontWeight: '800',
+    lineHeight: 66,
+    textShadowColor: Hud.glow,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 16,
   },
-  levelCaption: {
-    color: SoloColors.textSecondary,
-    letterSpacing: 2,
+  levelLabel: {
+    color: Hud.textLabel,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 3,
+    marginTop: 2,
   },
   identityDetails: {
-    flex: 1,
-    gap: SoloSpacing.xs,
+    gap: 10,
   },
   identityLine: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'baseline',
+    gap: 8,
   },
   identityLabel: {
-    color: SoloColors.textMuted,
-    letterSpacing: 0.5,
+    color: Hud.textLabel,
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 1.5,
   },
   identityValue: {
-    color: SoloColors.textPrimary,
+    color: Hud.textPrimary,
+    fontSize: 17,
+    fontWeight: '500',
   },
-  attributeGrid: {
+
+  // Painéis genéricos (bordas iguais em toda a tela)
+  panel: {
+    borderWidth: 1,
+    borderColor: Hud.panelBorder,
+    borderRadius: 4,
+    padding: 20,
+  },
+
+  // Barras STR / MP
+  barsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: '4%',
+  },
+  barCell: {
+    flex: 1,
+  },
+  barCellTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingRight: 12,
+  },
+  barTrack: {
+    flex: 1,
+    height: 2,
+    backgroundColor: Hud.barTrack,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  barFill: {
+    height: '100%',
+    backgroundColor: Hud.barFill,
+    borderRadius: 2,
+  },
+  barLabel: {
+    marginTop: 10,
+    color: Hud.textLabel,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 2,
+  },
+
+  // Grade de atributos
+  statsPanel: {
+    gap: 22,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  statLabel: {
+    color: Hud.textLabel,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+  },
+  statLabelMultiline: {
+    color: Hud.textLabel,
+    fontSize: 8.5,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    lineHeight: 11,
+    textTransform: 'uppercase',
+  },
+  statValue: {
+    color: Hud.textPrimary,
+    fontSize: 21,
+    fontWeight: '700',
+    textShadowColor: Hud.glow,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+
+  // Barra de navegação inferior
+  bottomNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  diamondIcon: {
+    transform: [{ rotate: '45deg' }],
   },
 });

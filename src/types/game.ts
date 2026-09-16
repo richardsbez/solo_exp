@@ -36,12 +36,24 @@ export interface Mission {
 
 export interface Player {
   name: string;
+  /**
+   * Título exibido abaixo do nome na janela de status ("Novato",
+   * "Caçador de Rank E"...). Por enquanto é só cosmético e editável; a
+   * ideia é liberar títulos automaticamente por marcos de nível depois.
+   */
+  title: string;
   level: number;
   /** XP acumulado dentro do nível atual (não é o XP total desde o início). */
   currentXP: number;
   /** Quanto XP falta pra bater o próximo nível, a partir do currentXP. */
   xpToNextLevel: number;
   attributes: Attributes;
+  /**
+   * Pontos livres ganhos a cada level up (ver POINTS_PER_LEVEL). Ainda não
+   * há tela pra gastá-los — por ora só acumulam e aparecem no HUD, que é
+   * exatamente o que o design do Figma pede.
+   */
+  abilityPoints: number;
   createdAt: string;
   updatedAt: string;
 }

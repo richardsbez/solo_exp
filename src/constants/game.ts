@@ -9,6 +9,25 @@ export const ATTRIBUTE_LABELS: Record<AttributeKey, string> = {
   perception: 'Percepção',
 };
 
+/** Sigla de 3 letras usada na janela de status (estilo anime). Separada do
+ * label completo porque a grade do HUD não tem largura pra "Inteligência". */
+export const ATTRIBUTE_SHORT_LABELS: Record<AttributeKey, string> = {
+  strength: 'STR',
+  vitality: 'VIT',
+  agility: 'AGI',
+  intelligence: 'INT',
+  perception: 'PER',
+};
+
+/** Ordem em que os atributos aparecem na grade 2x3 do HUD. */
+export const ATTRIBUTE_DISPLAY_ORDER: AttributeKey[] = [
+  'strength',
+  'vitality',
+  'agility',
+  'intelligence',
+  'perception',
+];
+
 /** XP base concedido por rank de missão. Ranks maiores dão mais XP. */
 export const RANK_BASE_XP: Record<MissionRank, number> = {
   E: 10,
@@ -22,6 +41,12 @@ export const RANK_BASE_XP: Record<MissionRank, number> = {
 /** XP necessário pra sair do nível 1 pro 2. As curvas de XP em RPG sempre
  * crescem a partir disso — ver `calculateXpToNextLevel` em utils/leveling. */
 export const BASE_XP_TO_LEVEL_2 = 100;
+
+/** Pontos livres concedidos a cada level up. */
+export const POINTS_PER_LEVEL = 3;
+
+/** Título inicial de todo jogador recém-desperto. */
+export const DEFAULT_TITLE = 'Novato';
 
 export function createDefaultAttributes(): Attributes {
   return {
@@ -37,12 +62,38 @@ export function createDefaultPlayer(name = 'Caçador'): Player {
   const now = new Date().toISOString();
   return {
     name,
+    title: DEFAULT_TITLE,
     level: 1,
     currentXP: 0,
     xpToNextLevel: BASE_XP_TO_LEVEL_2,
     attributes: createDefaultAttributes(),
+    abilityPoints: 0,
     createdAt: now,
     updatedAt: now,
+  };
+}
+
+/**
+ * Completa um save antigo com os campos que passaram a existir depois.
+ *
+ * Isso importa porque o save vive no IndexedDB do iPhone, não num banco
+ * que a gente possa migrar por fora: se o app ler um JSON salvo na versão
+ * anterior e tentar renderizar `player.title`, vem `undefined` na tela.
+ * Toda leitura passa por aqui (ver services/storage.ts).
+ */
+export function normalizePlayer(stored: Partial<Player> | null | undefined): Player {
+  const fallback = createDefaultPlayer();
+  if (!stored) return fallback;
+
+  return {
+    ...fallback,
+    ...stored,
+    title: stored.title ?? fallback.title,
+    abilityPoints: stored.abilityPoints ?? 0,
+    attributes: {
+      ...fallback.attributes,
+      ...(stored.attributes ?? {}),
+    },
   };
 }
 

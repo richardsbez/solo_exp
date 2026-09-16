@@ -1,4 +1,4 @@
-import { BASE_XP_TO_LEVEL_2 } from '@/constants/game';
+import { BASE_XP_TO_LEVEL_2, POINTS_PER_LEVEL } from '@/constants/game';
 import type { Player, XpGainResult } from '@/types/game';
 
 /**
@@ -34,6 +34,13 @@ export function applyXpGain(player: Player, xpAmount: number): XpGainResult {
   let xpToNextLevel = player.xpToNextLevel;
   let levelsGained = 0;
 
+  // Guarda contra save corrompido: se xpToNextLevel vier 0, NaN ou
+  // negativo do storage, o while abaixo viraria loop infinito e travaria
+  // a aba do Safari.
+  if (!Number.isFinite(xpToNextLevel) || xpToNextLevel <= 0) {
+    xpToNextLevel = calculateXpToNextLevel(level);
+  }
+
   while (currentXP >= xpToNextLevel) {
     currentXP -= xpToNextLevel;
     level += 1;
@@ -46,6 +53,7 @@ export function applyXpGain(player: Player, xpAmount: number): XpGainResult {
     level,
     currentXP,
     xpToNextLevel,
+    abilityPoints: player.abilityPoints + levelsGained * POINTS_PER_LEVEL,
     updatedAt: new Date().toISOString(),
   };
 

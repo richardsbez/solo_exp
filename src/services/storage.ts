@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { createDefaultMissions, createDefaultPlayer } from '@/constants/game';
+import { createDefaultMissions, normalizePlayer } from '@/constants/game';
 import type { Mission, Player } from '@/types/game';
 
 // No web, o AsyncStorage 3.x usa IndexedDB por baixo dos panos (não mais
@@ -31,9 +31,14 @@ async function writeJSON<T>(key: string, value: T): Promise<boolean> {
   }
 }
 
+/**
+ * Sempre passa o que veio do disco por `normalizePlayer`: saves gravados
+ * por versões anteriores do app não têm `title`/`abilityPoints`, e a UI
+ * renderizaria `undefined` sem isso.
+ */
 export async function loadPlayer(): Promise<Player> {
-  const stored = await readJSON<Player>(KEYS.player);
-  return stored ?? createDefaultPlayer();
+  const stored = await readJSON<Partial<Player>>(KEYS.player);
+  return normalizePlayer(stored);
 }
 
 export async function savePlayer(player: Player): Promise<boolean> {
@@ -71,9 +76,9 @@ export async function exportSave(): Promise<string> {
  */
 export async function importSave(json: string): Promise<boolean> {
   try {
-    const parsed = JSON.parse(json) as { player?: Player; missions?: Mission[] };
+    const parsed = JSON.parse(json) as { player?: Partial<Player>; missions?: Mission[] };
     if (!parsed.player || !parsed.missions) return false;
-    await Promise.all([savePlayer(parsed.player), saveMissions(parsed.missions)]);
+    await Promise.all([savePlayer(normalizePlayer(parsed.player)), saveMissions(parsed.missions)]);
     return true;
   } catch (error) {
     console.error('[storage] Falha ao importar backup', error);

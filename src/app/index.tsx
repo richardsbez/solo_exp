@@ -4,28 +4,19 @@ import { useMemo } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { HudBottomNav } from '@/components/hud-bottom-nav';
+import { Hud } from '@/constants/hud';
 import { ATTRIBUTE_DISPLAY_ORDER, ATTRIBUTE_SHORT_LABELS } from '@/constants/game';
 import { usePlayer } from '@/hooks/usePlayer';
 
 // ---------------------------------------------------------------------------
 // Tela de Status — janela do Sistema no estilo "Solo Leveling".
 //
-// Agora lê o estado real via usePlayer(): tudo que aparece aqui vem do save
-// gravado no IndexedDB do aparelho. Não há mais nenhum dado mockado.
+// Lê o estado real via usePlayer(): tudo que aparece aqui vem do save
+// gravado no IndexedDB do aparelho. A paleta e a barra inferior agora
+// vivem em constants/hud.ts e components/hud-bottom-nav.tsx — compartilhadas
+// com as demais abas, pra ficarem idênticas e com navegação de verdade.
 // ---------------------------------------------------------------------------
-
-// Paleta fixa desse HUD — intencionalmente não segue o Colors claro/escuro
-// do app (constants/theme.ts). É a "janela do sistema", sempre escura,
-// igual no anime, independente do tema do dispositivo.
-const Hud = {
-  background: '#05070d',
-  panelBorder: 'rgba(150, 190, 255, 0.28)',
-  textPrimary: '#e7edff',
-  textLabel: '#8ea0c9',
-  glow: '#6fa8ff',
-  barTrack: 'rgba(150, 190, 255, 0.16)',
-  barFill: '#e7edff',
-};
 
 export default function StatusScreen() {
   const insets = useSafeAreaInsets();
@@ -135,16 +126,7 @@ export default function StatusScreen() {
           </View>
         </ScrollView>
 
-        {/* Barra inferior — pinada fora do ScrollView, com padding extra
-            pra respeitar o home indicator do iPhone. Só visual por
-            enquanto, sem navegação real. */}
-        <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 14 }]}>
-          <Feather name="square" size={22} color={Hud.textPrimary} style={styles.diamondIcon} />
-          <Feather name="check-square" size={22} color={Hud.textPrimary} />
-          <Feather name="calendar" size={22} color={Hud.textPrimary} />
-          <Feather name="message-circle" size={22} color={Hud.textPrimary} />
-          <Feather name="shopping-cart" size={22} color={Hud.textPrimary} />
-        </View>
+        <HudBottomNav />
       </View>
     </View>
   );
@@ -384,17 +366,5 @@ const styles = StyleSheet.create({
     textShadowColor: Hud.glow,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 10,
-  },
-
-  // Barra de navegação inferior
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-  },
-  diamondIcon: {
-    transform: [{ rotate: '45deg' }],
   },
 });

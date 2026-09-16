@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ---------------------------------------------------------------------------
 // Tela de Status — reproduz o design do Figma (janela de status estilo
@@ -40,11 +40,14 @@ const Hud = {
 };
 
 export default function StatusScreen() {
+  const insets = useSafeAreaInsets();
+
   return (
     <View style={styles.screen}>
       <StatusBar style="light" />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <ScrollView
+          style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
           {/* Cabeçalho */}
@@ -102,15 +105,17 @@ export default function StatusScreen() {
           </View>
         </ScrollView>
 
-        {/* Barra inferior — só visual por enquanto, sem navegação real */}
-        <View style={styles.bottomNav}>
+        {/* Barra inferior — pinada fora do ScrollView, com padding extra
+            pra respeitar o home indicator do iPhone. Só visual por
+            enquanto, sem navegação real. */}
+        <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 14 }]}>
           <Feather name="square" size={22} color={Hud.textPrimary} style={styles.diamondIcon} />
           <Feather name="check-square" size={22} color={Hud.textPrimary} />
           <Feather name="calendar" size={22} color={Hud.textPrimary} />
           <Feather name="message-circle" size={22} color={Hud.textPrimary} />
           <Feather name="shopping-cart" size={22} color={Hud.textPrimary} />
         </View>
-      </SafeAreaView>
+      </View>
     </View>
   );
 }
@@ -151,7 +156,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Hud.background,
   },
-  safeArea: {
+  container: {
+    flex: 1,
+  },
+  scrollView: {
     flex: 1,
   },
   scrollContent: {
@@ -190,6 +198,7 @@ const styles = StyleSheet.create({
   identityRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 8,
     paddingVertical: 12,
     gap: 24,

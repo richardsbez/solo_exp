@@ -33,6 +33,24 @@ export default function Root({ children }: PropsWithChildren) {
             parecido com o ScrollView nativo. Remova se quiser scroll do
             body normal. */}
         <ScrollViewStyleReset />
+
+        {/* Garante que html/body sempre preencham 100% da viewport real
+            (dvh, não vh — no Safari mobile o vh não conta a barra de
+            endereço dinâmica) e nunca deixem o branco padrão da página
+            aparecer atrás do app, mesmo se algum flex filho ainda não
+            tiver altura calculada. */}
+        <style
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{
+            __html: `
+              html, body, #root {
+                height: 100%;
+                min-height: 100dvh;
+                background-color: #05070d;
+              }
+            `,
+          }}
+        />
       </head>
       <body>{children}</body>
     </html>

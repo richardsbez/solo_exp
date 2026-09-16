@@ -9,13 +9,14 @@ import { Hud } from '@/constants/hud';
 // Barra inferior compartilhada por todas as telas do Sistema.
 //
 // - O losango é o Status (home) e o checkbox são as Missões Diárias.
+// - Calendário -> /quests (missões principal/secundária; o ícone é
+//   calendário, mas a tela não tem nada a ver com data).
+// - Balão de chat -> /notifications (histórico de notificações).
+// - 3 linhas centralizadas -> /menu (outras funções, a definir no futuro).
 // - Todos os 5 ícones navegam de verdade (router.replace, pra não empilhar
 //   histórico — trocar de aba não deveria acumular "voltar, voltar,
 //   voltar" no Safari).
 // - A aba correspondente à rota atual acende com o glow neon.
-// - O último ícone (3 linhas centralizadas) veio do último design do
-//   Figma, no lugar do "align-left" antigo. A rota /log é só um
-//   placeholder até a tela final ser desenhada.
 // ---------------------------------------------------------------------------
 
 type NavItem = {
@@ -27,9 +28,9 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { icon: 'square', route: '/', rotated: true }, // losango = STATUS
   { icon: 'check-square', route: '/missions' },
-  { icon: 'calendar', route: '/calendar' },
-  { icon: 'message-circle', route: '/chat' },
-  { icon: 'align-center', route: '/log' },
+  { icon: 'calendar', route: '/quests' },
+  { icon: 'message-circle', route: '/notifications' },
+  { icon: 'align-center', route: '/menu' },
 ];
 
 export function HudBottomNav() {

@@ -1,20 +1,26 @@
+import 'react-native-gesture-handler';
+
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 
 SplashScreen.preventAutoHideAsync();
 
-// A navegação por abas padrão do template (AppTabs) foi removida — a tela
-// de Status agora desenha sua própria barra inferior, igual ao design do
-// Figma. Deixar as duas ativas ao mesmo tempo duplicaria a navegação.
+// GestureHandlerRootView precisa envolver a árvore inteira pra que
+// qualquer gesto (o swipe entre abas — ver components/hud-swipe-pager.tsx)
+// funcione direito. Sem ele, o gesture-handler não consegue interceptar o
+// toque antes dos outros componentes (ScrollView etc.) reagirem primeiro.
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <Stack screenOptions={{ headerShown: false }} />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <AnimatedSplashOverlay />
+        <Stack screenOptions={{ headerShown: false }} />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

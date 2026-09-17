@@ -1,60 +1,44 @@
 import { Feather } from '@expo/vector-icons';
-import { usePathname, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Hud } from '@/constants/hud';
+import { TABS } from '@/constants/tabs';
 
 // ---------------------------------------------------------------------------
-// Barra inferior compartilhada por todas as telas do Sistema.
+// Barra inferior compartilhada por todas as abas do Sistema.
 //
-// - O losango é o Status (home) e o checkbox são as Missões Diárias.
-// - Calendário -> /quests (missões principal/secundária; o ícone é
-//   calendário, mas a tela não tem nada a ver com data).
-// - Balão de chat -> /notifications (histórico de notificações).
-// - 3 linhas centralizadas -> /menu (outras funções, a definir no futuro).
-// - Todos os 5 ícones navegam de verdade (router.replace, pra não empilhar
-//   histórico — trocar de aba não deveria acumular "voltar, voltar,
-//   voltar" no Safari).
-// - A aba correspondente à rota atual acende com o glow neon.
+// Não navega mais por rota (router.replace) — agora é só um índice
+// (0 a 4) controlado pelo shell em app/index.tsx, o mesmo índice que o
+// HudSwipePager usa. Tocar num ícone e arrastar a tela terminam no mesmo
+// lugar: `onSelect(index)`.
 // ---------------------------------------------------------------------------
 
-type NavItem = {
-  icon: keyof typeof Feather.glyphMap;
-  route: string;
-  rotated?: boolean;
-};
+interface HudBottomNavProps {
+  activeIndex: number;
+  onSelect: (index: number) => void;
+}
 
-const NAV_ITEMS: NavItem[] = [
-  { icon: 'square', route: '/', rotated: true }, // losango = STATUS
-  { icon: 'check-square', route: '/missions' },
-  { icon: 'calendar', route: '/quests' },
-  { icon: 'message-circle', route: '/notifications' },
-  { icon: 'align-center', route: '/menu' },
-];
-
-export function HudBottomNav() {
+export function HudBottomNav({ activeIndex, onSelect }: HudBottomNavProps) {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const pathname = usePathname();
 
   return (
     <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 14 }]}>
-      {NAV_ITEMS.map((item) => {
-        const isActive = pathname === item.route;
+      {TABS.map((tab, index) => {
+        const isActive = index === activeIndex;
 
         return (
           <Pressable
-            key={item.route}
+            key={tab.key}
             disabled={isActive}
-            onPress={() => router.replace(item.route as never)}
+            onPress={() => onSelect(index)}
             hitSlop={10}
             style={({ pressed }) => [styles.navButton, pressed && styles.navButtonPressed]}>
             <Feather
-              name={item.icon}
+              name={tab.icon}
               size={22}
               color={isActive ? Hud.textPrimary : Hud.textLabel}
-              style={[item.rotated && styles.diamondIcon, isActive && styles.activeIconGlow]}
+              style={[tab.rotated && styles.diamondIcon, isActive && styles.activeIconGlow]}
             />
           </Pressable>
         );

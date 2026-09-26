@@ -14,7 +14,7 @@ export default function Root({ children }: PropsWithChildren) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta
           name="viewport"
-          content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
+          content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover"
         />
 
         {/* Manifest do PWA (fica em public/manifest.json, copiado direto pro dist) */}
@@ -38,7 +38,12 @@ export default function Root({ children }: PropsWithChildren) {
             (dvh, não vh — no Safari mobile o vh não conta a barra de
             endereço dinâmica) e nunca deixem o branco padrão da página
             aparecer atrás do app, mesmo se algum flex filho ainda não
-            tiver altura calculada. */}
+            tiver altura calculada.
+
+            `touch-action: manipulation` desativa o zoom por duplo toque
+            (double-tap) e a maior parte do pinch-zoom em navegadores
+            modernos, mantendo o pan (arrastar/rolar) normal — é o que faz
+            o swipe entre abas (HudSwipePager) continuar funcionando. */}
         <style
           // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{
@@ -47,7 +52,24 @@ export default function Root({ children }: PropsWithChildren) {
                 height: 100%;
                 min-height: 100dvh;
                 background-color: #05070d;
+                touch-action: manipulation;
               }
+            `,
+          }}
+        />
+
+        {/* `touch-action` e `user-scalable=no` cobrem a maioria dos
+            navegadores, mas o Safari (inclusive em modo standalone/PWA)
+            ainda dispara os eventos proprietários "gesture*" num pinch com
+            2 dedos, ignorando os dois acima. Bloquear esses eventos é o
+            que efetivamente tira o pinch-to-zoom no iPhone. */}
+        <script
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{
+            __html: `
+              document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
+              document.addEventListener('gesturechange', function (e) { e.preventDefault(); }, { passive: false });
+              document.addEventListener('gestureend', function (e) { e.preventDefault(); }, { passive: false });
             `,
           }}
         />

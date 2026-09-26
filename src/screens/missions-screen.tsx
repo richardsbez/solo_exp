@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { Hud, HudMono } from '@/constants/hud';
 
@@ -30,10 +30,7 @@ const STATIC_MISSIONS: MissionRowData[] = [
 
 export function MissionsScreen() {
   return (
-    <ScrollView
-      style={styles.scrollView}
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
       {/* Cabeçalho — mesma linguagem visual do header do Status, mas sem
           o "•••" (não tem no design desta tela). */}
       <View style={styles.headerBox}>
@@ -78,7 +75,7 @@ export function MissionsScreen() {
           <Text style={styles.warningDanger}>penalty</Text>
         </Text>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -86,10 +83,10 @@ const QUOTE_COLOR = '#aab6d9';
 const WARNING_COLOR = '#c7d0ea';
 
 const styles = StyleSheet.create({
-  scrollView: {
+  // Sem ScrollView de propósito: essa tela não deve rolar (nem pra cima
+  // nem pra baixo) — o conteúdo precisa caber inteiro na área visível.
+  container: {
     flex: 1,
-  },
-  scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 12,
     paddingBottom: 40,
@@ -209,8 +206,12 @@ const styles = StyleSheet.create({
   // Aviso final
   warningBlock: {
     marginTop: 60,
-    marginLeft: '30%',
-    maxWidth: 230,
+    // Antes usava marginLeft: '30%', que empurrava o bloco pro canto
+    // direito. alignSelf + width fixa centraliza a CAIXA na tela,
+    // mantendo o texto alinhado à esquerda só dentro dela — igual ao
+    // design original.
+    alignSelf: 'center',
+    width: 230,
   },
   warningText: {
     fontFamily: HudMono,

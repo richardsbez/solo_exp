@@ -5,7 +5,6 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { HudSheet } from '@/components/hud-sheet';
 import { MissionConnectSheet } from '@/components/mission-connect-sheet';
 import { MissionCountMethodSheet } from '@/components/mission-count-method-sheet';
-import { ATTRIBUTE_DISPLAY_ORDER, ATTRIBUTE_SHORT_LABELS } from '@/constants/game';
 import { Hud, HudMono } from '@/constants/hud';
 import type { AttributeKey } from '@/types/game';
 import {
@@ -52,21 +51,25 @@ export function MissionEditorSheet({
     if (visible) setDraft(editingMission ?? createDraftMission());
   }, [visible, editingMission]);
 
-  const adjustAttribute = (key: AttributeKey, delta: number) => {
+  // Sem botões de +/- visíveis (a referência não tem nenhum) — tocar no
+  // valor cicla 0 → 5 → 0. abilityPoints segue o mesmo padrão.
+  const adjustAttribute = (key: AttributeKey) => {
     setDraft((prev) => ({
       ...prev,
-      attributes: { ...prev.attributes, [key]: Math.max(0, prev.attributes[key] + delta) },
+      attributes: { ...prev.attributes, [key]: (prev.attributes[key] + 1) % 6 },
     }));
   };
 
-  const adjustAbilityPoints = (delta: number) => {
-    setDraft((prev) => ({ ...prev, abilityPoints: Math.max(0, prev.abilityPoints + delta) }));
+  const adjustAbilityPoints = () => {
+    setDraft((prev) => ({ ...prev, abilityPoints: (prev.abilityPoints + 1) % 10 }));
   };
 
-  const adjustReward = (key: 'coins' | 'xp', delta: number) => {
+  const adjustReward = (key: 'coins' | 'xp') => {
+    const step = key === 'coins' ? 5 : 10;
+    const max = key === 'coins' ? 100 : 200;
     setDraft((prev) => ({
       ...prev,
-      rewards: { ...prev.rewards, [key]: Math.max(0, prev.rewards[key] + delta) },
+      rewards: { ...prev.rewards, [key]: (prev.rewards[key] + step) % (max + step) },
     }));
   };
 
@@ -85,13 +88,15 @@ export function MissionEditorSheet({
     <>
       <HudSheet visible={visible} onRequestClose={onClose}>
         <ScrollView showsVerticalScrollIndicator={false}>
-          <TextInput
-            value={draft.title}
-            onChangeText={(title) => setDraft((prev) => ({ ...prev, title }))}
-            placeholder="NOME DA MISSAO...."
-            placeholderTextColor={Hud.textMuted}
-            style={styles.titleInput}
-          />
+          <View style={styles.titleBox}>
+            <TextInput
+              value={draft.title}
+              onChangeText={(title) => setDraft((prev) => ({ ...prev, title }))}
+              placeholder="NOME DA MISSAO...."
+              placeholderTextColor={Hud.textMuted}
+              style={styles.titleInput}
+            />
+          </View>
           <View style={styles.titleUnderline} />
 
           <View style={styles.tabsRow}>
@@ -111,44 +116,48 @@ export function MissionEditorSheet({
           </View>
 
           <View style={styles.attributesPanel}>
-            <View style={styles.attributesGrid}>
-              {ATTRIBUTE_DISPLAY_ORDER.map((key) => (
-                <AttributeStepper
-                  key={key}
-                  label={ATTRIBUTE_SHORT_LABELS[key]}
-                  value={draft.attributes[key]}
-                  onDecrement={() => adjustAttribute(key, -1)}
-                  onIncrement={() => adjustAttribute(key, 1)}
+            <View style={styles.attributesColumns}>
+              <View style={styles.attributesColumn}>
+                <AttributeValue
+                  label="STR"
+                  value={draft.attributes.strength}
+                  onPress={() => adjustAttribute('strength')}
                 />
-              ))}
-            </View>
-            <View style={styles.pointsRow}>
-              <Text style={styles.pointsLabel}>Points:</Text>
-              <Pressable onPress={() => adjustAbilityPoints(-1)} hitSlop={8}>
-                <Feather name="minus" size={11} color={Hud.textMuted} />
-              </Pressable>
-              <Text style={styles.pointsValue}>{draft.abilityPoints}</Text>
-              <Pressable onPress={() => adjustAbilityPoints(1)} hitSlop={8}>
-                <Feather name="plus" size={11} color={Hud.textMuted} />
-              </Pressable>
+                <AttributeValue
+                  label="AGI"
+                  value={draft.attributes.agility}
+                  onPress={() => adjustAttribute('agility')}
+                />
+                <AttributeValue
+                  label="PER"
+                  value={draft.attributes.perception}
+                  onPress={() => adjustAttribute('perception')}
+                />
+              </View>
+              <View style={styles.attributesColumn}>
+                <AttributeValue
+                  label="INT"
+                  value={draft.attributes.intelligence}
+                  onPress={() => adjustAttribute('intelligence')}
+                />
+                <AttributeValue
+                  label="VIT"
+                  value={draft.attributes.vitality}
+                  onPress={() => adjustAttribute('vitality')}
+                />
+                <View style={styles.pointsRow}>
+                  <Text style={styles.pointsLabel}>Points:</Text>
+                  <Pressable onPress={adjustAbilityPoints}>
+                    <Text style={styles.pointsValue}>{draft.abilityPoints}</Text>
+                  </Pressable>
+                </View>
+              </View>
             </View>
           </View>
 
           <View style={styles.rewardsRow}>
-            <RewardBox
-              icon="crosshair"
-              label="COINS"
-              value={draft.rewards.coins}
-              onDecrement={() => adjustReward('coins', -1)}
-              onIncrement={() => adjustReward('coins', 1)}
-            />
-            <RewardBox
-              icon="crosshair"
-              label="XP"
-              value={draft.rewards.xp}
-              onDecrement={() => adjustReward('xp', -1)}
-              onIncrement={() => adjustReward('xp', 1)}
-            />
+            <RewardBox icon="crosshair" label="COINS" value={draft.rewards.coins} onPress={() => adjustReward('coins')} />
+            <RewardBox icon="crosshair" label="XP" value={draft.rewards.xp} onPress={() => adjustReward('xp')} />
           </View>
 
           <SectionLabel icon="check" text="CONTAGEM" />
@@ -206,28 +215,20 @@ function SectionLabel({ icon, text }: { icon: keyof typeof Feather.glyphMap; tex
   );
 }
 
-function AttributeStepper({
+function AttributeValue({
   label,
   value,
-  onDecrement,
-  onIncrement,
+  onPress,
 }: {
   label: string;
   value: number;
-  onDecrement: () => void;
-  onIncrement: () => void;
+  onPress: () => void;
 }) {
   return (
-    <View style={styles.attributeRow}>
+    <Pressable onPress={onPress} style={styles.attributeRow} hitSlop={6}>
       <Text style={styles.attributeLabel}>{label}:</Text>
-      <Pressable onPress={onDecrement} hitSlop={8}>
-        <Feather name="minus" size={11} color={Hud.textMuted} />
-      </Pressable>
       <Text style={styles.attributeValue}>{value}</Text>
-      <Pressable onPress={onIncrement} hitSlop={8}>
-        <Feather name="plus" size={11} color={Hud.textMuted} />
-      </Pressable>
-    </View>
+    </Pressable>
   );
 }
 
@@ -235,31 +236,21 @@ function RewardBox({
   icon,
   label,
   value,
-  onDecrement,
-  onIncrement,
+  onPress,
 }: {
   icon: keyof typeof Feather.glyphMap;
   label: string;
   value: number;
-  onDecrement: () => void;
-  onIncrement: () => void;
+  onPress: () => void;
 }) {
   return (
-    <View style={styles.rewardBox}>
+    <Pressable style={styles.rewardBox} onPress={onPress}>
       <View style={styles.rewardHeader}>
         <Feather name={icon} size={12} color={Hud.textLabel} />
         <Text style={styles.rewardLabel}>{label}</Text>
       </View>
-      <View style={styles.rewardValueRow}>
-        <Pressable onPress={onDecrement} hitSlop={8}>
-          <Feather name="minus" size={13} color={Hud.textMuted} />
-        </Pressable>
-        <Text style={styles.rewardValue}>{value}</Text>
-        <Pressable onPress={onIncrement} hitSlop={8}>
-          <Feather name="plus" size={13} color={Hud.textMuted} />
-        </Pressable>
-      </View>
-    </View>
+      <Text style={styles.rewardValue}>{value}</Text>
+    </Pressable>
   );
 }
 
@@ -269,11 +260,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 1,
-    paddingBottom: 10,
+  },
+  titleBox: {
+    borderWidth: 1,
+    borderColor: Hud.panelBorder,
+    borderRadius: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
   },
   titleUnderline: {
     height: 2,
     backgroundColor: Hud.textPrimary,
+    marginTop: 10,
     marginBottom: 16,
   },
   tabsRow: {
@@ -308,13 +306,17 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 14,
   },
-  attributesGrid: {
+  attributesColumns: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    rowGap: 10,
   },
+  attributesColumn: {
+    flex: 1,
+    gap: 12,
+  },
+  // Sem Feather aqui de propósito — a referência não mostra nenhum
+  // controle visível de +/-. Tocar no número incrementa (ver
+  // adjustAttribute), sem poluir a tela com botões extras.
   attributeRow: {
-    width: '50%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -327,17 +329,13 @@ const styles = StyleSheet.create({
   },
   attributeValue: {
     color: Hud.textPrimary,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
-    width: 16,
-    textAlign: 'center',
   },
   pointsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
     gap: 8,
-    marginTop: 10,
   },
   pointsLabel: {
     color: Hud.textMuted,
@@ -345,7 +343,7 @@ const styles = StyleSheet.create({
   },
   pointsValue: {
     color: Hud.textPrimary,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   rewardsRow: {
@@ -359,7 +357,9 @@ const styles = StyleSheet.create({
     borderColor: Hud.panelBorder,
     borderRadius: 8,
     padding: 12,
-    alignItems: 'center',
+    // Alinhado à esquerda — a referência não centraliza o conteúdo
+    // dessas caixas.
+    alignItems: 'flex-start',
   },
   rewardHeader: {
     flexDirection: 'row',
@@ -372,11 +372,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     letterSpacing: 1,
-  },
-  rewardValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
   },
   rewardValue: {
     color: Hud.textPrimary,
@@ -402,9 +397,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Hud.panelBorder,
     borderRadius: 6,
-    minHeight: 36,
+    // Mais fino que antes — a referência é uma linha só, não uma caixa alta.
+    paddingVertical: 8,
     paddingHorizontal: 10,
-    justifyContent: 'center',
     marginBottom: 14,
   },
   pickerFieldText: {

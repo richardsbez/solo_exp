@@ -91,9 +91,12 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: HudMono,
     color: Hud.textLabel,
-    fontSize: 12,
+    // Um pouco menor que o do outro submenu — "Compartilharão O" é uma
+    // linha comprida e com 12px quebrava feio, deixando o "O" sozinho
+    // numa linha própria.
+    fontSize: 11,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 17,
     marginBottom: 18,
   },
   list: {

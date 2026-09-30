@@ -97,14 +97,14 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   list: {
-    gap: 10,
+    gap: 8,
     marginBottom: 20,
   },
   option: {
     borderWidth: 1,
     borderColor: Hud.panelBorder,
     borderRadius: 6,
-    paddingVertical: 12,
+    paddingVertical: 9,
     alignItems: 'center',
   },
   optionSelected: {

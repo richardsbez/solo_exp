@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     flex: 1,
     // Bem mais transparente que antes (era 0.78 opaco) — o blur é que
     // precisa fazer o trabalho de esconder o conteúdo de trás, não a cor.
-    backgroundColor: 'rgba(8, 14, 28, 0.42)',
+    backgroundColor: 'rgba(4, 11, 24, 0.42)', // #040b18 com 42% de opacidade
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
     // vidro, sutil o bastante pra não brigar com a borda azul do resto
     // do app.
     borderTopColor: 'rgba(210, 225, 255, 0.55)',
-    backgroundColor: 'rgba(28, 36, 58, 0.55)',
+    backgroundColor: 'rgba(4, 11, 24, 0.55)', // #040b18 com 55% de opacidade
     padding: 20,
   },
 });

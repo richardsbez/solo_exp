@@ -73,6 +73,40 @@ export function createMissionId(): string {
   return `dm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+export function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+/** Métodos que têm meta + progresso numéricos (os que ganham +/-). */
+export function isCounter(count: CountConfig): boolean {
+  return count.method === 'numeric' || count.method === 'distance';
+}
+
+/** Passo do +/- da META no editor. */
+export function getTargetStep(method: CountMethod): number {
+  return method === 'distance' ? 1 : 5;
+}
+
+/** Passo do +/- do PROGRESSO na lista — cresce com a meta pra não
+ * precisar de 100 toques em "100 sit-ups". */
+export function getProgressStep(count: CountConfig): number {
+  if (count.method === 'distance') return 1;
+  const target = count.target ?? 0;
+  if (target >= 100) return 10;
+  if (target >= 20) return 5;
+  return 1;
+}
+
+/** Ids que compartilham progresso com `mission`: ela mesma, as que ela
+ * aponta e as que apontam pra ela. */
+export function getLinkedGroup(missions: DailyMission[], mission: DailyMission): Set<string> {
+  const group = new Set<string>([mission.id, ...mission.linkedMissionIds]);
+  for (const m of missions) {
+    if (m.linkedMissionIds.includes(mission.id)) group.add(m.id);
+  }
+  return group;
+}
+
 /** Formata o valor entre colchetes mostrado na lista e nos submenus —
  * "[0/100]", "[gastar -20R]", "[0/10km]"... */
 export function formatCountConfig(count: CountConfig): string {

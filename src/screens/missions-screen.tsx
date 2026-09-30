@@ -2,9 +2,18 @@ import { Feather } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { StepButton } from '@/components/hud-stepper';
 import { MissionEditorSheet } from '@/components/mission-editor-sheet';
 import { Hud, HudMono } from '@/constants/hud';
-import { createMissionId, formatCountConfig, type DailyMission } from '@/types/mission-editor';
+import {
+  clamp,
+  createMissionId,
+  formatCountConfig,
+  getLinkedGroup,
+  getProgressStep,
+  isCounter,
+  type DailyMission,
+} from '@/types/mission-editor';
 
 // ---------------------------------------------------------------------------
 // Tela de Missão Diária.
@@ -12,10 +21,8 @@ import { createMissionId, formatCountConfig, type DailyMission } from '@/types/m
 // Estado 100% local (useState) por enquanto — ainda não persiste no
 // IndexedDB nem está ligada ao usePlayer()/Status. O modelo de missão
 // daqui (DailyMission, em types/mission-editor.ts) é mais rico que o
-// Mission antigo do usePlayer/storage.ts: categoria PRINCIPAL/SECUNDARIA/
-// DIARIA, XP por atributo individual, coins, e vínculo de progresso entre
-// missões. É intencional — plugar isso no save de verdade é a próxima
-// etapa, depois desse modelo novo validado na tela.
+// Mission antigo do usePlayer/storage.ts. Plugar isso no save de verdade
+// é a próxima etapa, depois desse modelo novo validado na tela.
 // ---------------------------------------------------------------------------
 
 const DEFAULT_MISSIONS: DailyMission[] = [
@@ -111,23 +118,53 @@ export function MissionsScreen() {
    * (compartilham o mesmo progresso, ver "CONECTAR As" no editor). */
   const toggleComplete = (mission: DailyMission) => {
     const completed = !mission.completed;
-    const groupIds = new Set([mission.id, ...mission.linkedMissionIds]);
 
-    setMissions((prev) =>
-      prev.map((m) => {
-        const inGroup = groupIds.has(m.id) || m.linkedMissionIds.includes(mission.id);
-        if (!inGroup) return m;
+    setMissions((prev) => {
+      const group = getLinkedGroup(prev, mission);
+      return prev.map((m) => {
+        if (!group.has(m.id)) return m;
 
-        return {
-          ...m,
-          completed,
-          count:
-            m.count.method === 'check'
-              ? { ...m.count, checked: completed }
-              : { ...m.count, progress: completed ? (m.count.target ?? 0) : 0 },
-        };
-      })
-    );
+        if (m.count.method === 'check') {
+          return { ...m, completed, count: { ...m.count, checked: completed } };
+        }
+        if (isCounter(m.count)) {
+          const progress = completed ? (m.count.target ?? 0) : 0;
+          return { ...m, completed, count: { ...m.count, progress } };
+        }
+        // "text": só o status muda — não tem progresso pra mexer.
+        return { ...m, completed };
+      });
+    });
+  };
+
+  /** +/- do progresso. Missões vinculadas andam juntas; bater na meta
+   * conclui sozinho, e voltar abaixo dela reabre. */
+  const adjustProgress = (mission: DailyMission, direction: 1 | -1) => {
+    const target = mission.count.target ?? 0;
+    const step = getProgressStep(mission.count);
+    const nextProgress = clamp((mission.count.progress ?? 0) + direction * step, 0, target);
+    const done = target > 0 && nextProgress >= target;
+
+    setMissions((prev) => {
+      const group = getLinkedGroup(prev, mission);
+      return prev.map((m) => {
+        if (!group.has(m.id)) return m;
+
+        if (isCounter(m.count)) {
+          const ownTarget = m.count.target ?? 0;
+          const progress = Math.min(nextProgress, ownTarget);
+          return {
+            ...m,
+            completed: ownTarget > 0 && progress >= ownTarget,
+            count: { ...m.count, progress },
+          };
+        }
+        if (m.count.method === 'check') {
+          return { ...m, completed: done, count: { ...m.count, checked: done } };
+        }
+        return { ...m, completed: done };
+      });
+    });
   };
 
   const hasOpenAction = actionRowId !== null;
@@ -155,6 +192,7 @@ export function MissionsScreen() {
             hasOtherActionOpen={hasOpenAction && actionRowId !== mission.id}
             onLongPress={() => setActionRowId(mission.id)}
             onPressCheckbox={() => toggleComplete(mission)}
+            onAdjustProgress={(direction) => adjustProgress(mission, direction)}
             onDismissActions={() => setActionRowId(null)}
             onEdit={() => openEdit(mission)}
             onDelete={() => handleDelete(mission.id)}
@@ -191,6 +229,7 @@ function MissionRow({
   hasOtherActionOpen,
   onLongPress,
   onPressCheckbox,
+  onAdjustProgress,
   onDismissActions,
   onEdit,
   onDelete,
@@ -200,12 +239,12 @@ function MissionRow({
   hasOtherActionOpen: boolean;
   onLongPress: () => void;
   onPressCheckbox: () => void;
+  onAdjustProgress: (direction: 1 | -1) => void;
   onDismissActions: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  // A barra de editar/excluir substitui a linha inteira, no lugar dela —
-  // não abre por cima, é a própria linha que muda de conteúdo.
+  // A barra de editar/excluir substitui a linha inteira, no lugar dela.
   if (isActionMode) {
     return (
       <View style={styles.actionBar}>
@@ -220,9 +259,10 @@ function MissionRow({
     );
   }
 
-  // Método "check" já é o próprio checkbox — sem o "[✓]" decorativo
-  // duplicado que aparecia antes.
   const isCheck = mission.count.method === 'check';
+  const counter = isCounter(mission.count);
+  const target = mission.count.target ?? 0;
+  const progress = mission.count.progress ?? 0;
 
   return (
     <Pressable
@@ -230,12 +270,33 @@ function MissionRow({
       delayLongPress={2000}
       onPress={hasOtherActionOpen ? onDismissActions : undefined}
       style={styles.missionRow}>
-      <Text style={styles.missionTitle}>{mission.title}</Text>
+      <Text style={styles.missionTitle} numberOfLines={1}>
+        {mission.title}
+      </Text>
 
       <View style={styles.missionGoalGroup}>
+        {counter && !hasOtherActionOpen && (
+          <StepButton
+            kind="minus"
+            size={18}
+            disabled={progress <= 0}
+            onPress={() => onAdjustProgress(-1)}
+          />
+        )}
         {!isCheck && <Text style={styles.bracketText}>[{formatCountConfig(mission.count)}]</Text>}
+        {counter && !hasOtherActionOpen && (
+          <StepButton
+            kind="plus"
+            size={18}
+            disabled={progress >= target}
+            onPress={() => onAdjustProgress(1)}
+          />
+        )}
         <Pressable
           onPress={hasOtherActionOpen ? onDismissActions : onPressCheckbox}
+          hitSlop={8}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: mission.completed }}
           style={[styles.checkbox, mission.completed && styles.checkboxChecked]}>
           {mission.completed && <Text style={styles.checkboxMark}>✓</Text>}
         </Pressable>
@@ -322,16 +383,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    // Altura mínima fixa: a linha não "pula" quando os botões +/- somem
+    // (ao abrir a barra de ações de outra missão).
+    minHeight: 22,
   },
   missionTitle: {
+    flexShrink: 1,
     color: Hud.textPrimary,
     fontSize: 15,
     fontWeight: '500',
+    marginRight: 8,
   },
   missionGoalGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
+    gap: 7,
   },
   bracketText: {
     fontFamily: HudMono,
@@ -346,6 +412,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 2,
   },
   checkboxChecked: {
     borderColor: Hud.success,

@@ -19,7 +19,9 @@ const METHODS: MethodOption[] = [
 
 interface MissionCountMethodSheetProps {
   visible: boolean;
-  initialMethod?: CountMethod;
+  /** Configuração atual da missão — o método vem pré-selecionado e, se o
+   * usuário confirmar o MESMO método, a configuração é preservada. */
+  initialCount: CountConfig;
   onClose: () => void;
   onSelect: (count: CountConfig) => void;
 }
@@ -28,22 +30,26 @@ interface MissionCountMethodSheetProps {
  * contagem por missão — por isso é seleção única (radio), não checkbox. */
 export function MissionCountMethodSheet({
   visible,
-  initialMethod,
+  initialCount,
   onClose,
   onSelect,
 }: MissionCountMethodSheetProps) {
-  const [selected, setSelected] = useState<CountMethod | undefined>(initialMethod);
+  const [selected, setSelected] = useState<CountMethod>(initialCount.method);
 
-  // Reabre sempre mostrando o método atual da missão marcado, não em branco.
+  // Reabre sempre mostrando o método atual da missão marcado.
   useEffect(() => {
-    if (visible) setSelected(initialMethod);
-  }, [visible, initialMethod]);
+    if (visible) setSelected(initialCount.method);
+  }, [visible, initialCount.method]);
 
   const handleSelecionar = () => {
-    if (!selected) return;
+    // Mesmo método: nada muda. Antes, reabrir e confirmar zerava a meta.
+    if (selected === initialCount.method) {
+      onClose();
+      return;
+    }
 
-    // Trocar de método reseta o progresso anterior — não faria sentido
-    // "text" herdar um alvo numérico de quando a missão era "numeric".
+    // Trocar de método reseta o progresso anterior — "text" não deve
+    // herdar um alvo numérico de quando a missão era "numeric".
     const next: CountConfig =
       selected === 'numeric'
         ? { method: 'numeric', target: 0, progress: 0 }
@@ -68,6 +74,8 @@ export function MissionCountMethodSheet({
             <Pressable
               key={option.method}
               onPress={() => setSelected(option.method)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: isSelected }}
               style={[styles.option, isSelected && styles.optionSelected]}>
               <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
                 {option.label}
@@ -77,10 +85,7 @@ export function MissionCountMethodSheet({
         })}
       </View>
 
-      <Pressable
-        disabled={!selected}
-        onPress={handleSelecionar}
-        style={[styles.confirmButton, !selected && styles.confirmButtonDisabled]}>
+      <Pressable onPress={handleSelecionar} style={styles.confirmButton}>
         <Text style={styles.confirmText}>SELECIONAR</Text>
       </Pressable>
     </HudSheet>
@@ -127,9 +132,6 @@ const styles = StyleSheet.create({
     borderColor: Hud.textPrimary,
     paddingVertical: 12,
     alignItems: 'center',
-  },
-  confirmButtonDisabled: {
-    opacity: 0.4,
   },
   confirmText: {
     color: Hud.textPrimary,

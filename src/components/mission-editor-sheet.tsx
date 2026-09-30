@@ -3,13 +3,17 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { HudSheet } from '@/components/hud-sheet';
+import { Stepper } from '@/components/hud-stepper';
 import { MissionConnectSheet } from '@/components/mission-connect-sheet';
 import { MissionCountMethodSheet } from '@/components/mission-count-method-sheet';
 import { Hud, HudMono } from '@/constants/hud';
 import type { AttributeKey } from '@/types/game';
 import {
+  clamp,
   createDraftMission,
   formatCountConfig,
+  getTargetStep,
+  isCounter,
   type DailyMission,
   type MissionCategory,
 } from '@/types/mission-editor';
@@ -30,10 +34,28 @@ const CATEGORY_TABS: { key: MissionCategory; label: string }[] = [
   { key: 'diaria', label: 'DIARIA' },
 ];
 
-/** Painel principal de criação/edição de missão (Imagem 1). Orquestra os
- * dois submenus (método de contagem e conectar missões) por cima de si
- * mesmo — o rascunho (`draft`) só é escrito de volta na missão real
- * quando "CONFIRMAR" é tocado. */
+const LEFT_ATTRIBUTES: { label: string; key: AttributeKey }[] = [
+  { label: 'STR', key: 'strength' },
+  { label: 'AGI', key: 'agility' },
+  { label: 'PER', key: 'perception' },
+];
+const RIGHT_ATTRIBUTES: { label: string; key: AttributeKey }[] = [
+  { label: 'INT', key: 'intelligence' },
+  { label: 'VIT', key: 'vitality' },
+];
+
+const MAX_ATTRIBUTE = 5;
+const MAX_ABILITY_POINTS = 9;
+const MAX_TARGET = 9999;
+const REWARD_LIMITS = {
+  coins: { step: 5, max: 100 },
+  xp: { step: 10, max: 200 },
+} as const;
+
+/** Painel principal de criação/edição de missão. Orquestra os dois
+ * submenus (método de contagem e conectar missões) por cima de si mesmo —
+ * o rascunho (`draft`) só é escrito de volta na missão real quando
+ * "CONFIRMAR" é tocado. */
 export function MissionEditorSheet({
   visible,
   editingMission,
@@ -51,31 +73,48 @@ export function MissionEditorSheet({
     if (visible) setDraft(editingMission ?? createDraftMission());
   }, [visible, editingMission]);
 
-  // Sem botões de +/- visíveis (a referência não tem nenhum) — tocar no
-  // valor cicla 0 → 5 → 0. abilityPoints segue o mesmo padrão.
-  const adjustAttribute = (key: AttributeKey) => {
+  const adjustAttribute = (key: AttributeKey, direction: 1 | -1) => {
     setDraft((prev) => ({
       ...prev,
-      attributes: { ...prev.attributes, [key]: (prev.attributes[key] + 1) % 6 },
+      attributes: {
+        ...prev.attributes,
+        [key]: clamp(prev.attributes[key] + direction, 0, MAX_ATTRIBUTE),
+      },
     }));
   };
 
-  const adjustAbilityPoints = () => {
-    setDraft((prev) => ({ ...prev, abilityPoints: (prev.abilityPoints + 1) % 10 }));
-  };
-
-  const adjustReward = (key: 'coins' | 'xp') => {
-    const step = key === 'coins' ? 5 : 10;
-    const max = key === 'coins' ? 100 : 200;
+  const adjustAbilityPoints = (direction: 1 | -1) => {
     setDraft((prev) => ({
       ...prev,
-      rewards: { ...prev.rewards, [key]: (prev.rewards[key] + step) % (max + step) },
+      abilityPoints: clamp(prev.abilityPoints + direction, 0, MAX_ABILITY_POINTS),
     }));
   };
+
+  const adjustReward = (key: 'coins' | 'xp', direction: 1 | -1) => {
+    const { step, max } = REWARD_LIMITS[key];
+    setDraft((prev) => ({
+      ...prev,
+      rewards: { ...prev.rewards, [key]: clamp(prev.rewards[key] + direction * step, 0, max) },
+    }));
+  };
+
+  const adjustTarget = (direction: 1 | -1) => {
+    setDraft((prev) => {
+      const step = getTargetStep(prev.count.method);
+      const target = clamp((prev.count.target ?? 0) + direction * step, 0, MAX_TARGET);
+      return {
+        ...prev,
+        // Se a meta cair abaixo do progresso, o progresso acompanha.
+        count: { ...prev.count, target, progress: Math.min(prev.count.progress ?? 0, target) },
+      };
+    });
+  };
+
+  const canConfirm = draft.title.trim().length > 0;
 
   const handleConfirmar = () => {
-    if (!draft.title.trim()) return;
-    onConfirm(draft);
+    if (!canConfirm) return;
+    onConfirm({ ...draft, title: draft.title.trim() });
     onClose();
   };
 
@@ -84,16 +123,19 @@ export function MissionEditorSheet({
     .filter(Boolean)
     .join(', ');
 
+  const isDistance = draft.count.method === 'distance';
+
   return (
     <>
       <HudSheet visible={visible} onRequestClose={onClose}>
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.titleBox}>
             <TextInput
               value={draft.title}
               onChangeText={(title) => setDraft((prev) => ({ ...prev, title }))}
               placeholder="NOME DA MISSAO...."
               placeholderTextColor={Hud.textMuted}
+              maxLength={40}
               style={styles.titleInput}
             />
           </View>
@@ -118,46 +160,52 @@ export function MissionEditorSheet({
           <View style={styles.attributesPanel}>
             <View style={styles.attributesColumns}>
               <View style={styles.attributesColumn}>
-                <AttributeValue
-                  label="STR"
-                  value={draft.attributes.strength}
-                  onPress={() => adjustAttribute('strength')}
-                />
-                <AttributeValue
-                  label="AGI"
-                  value={draft.attributes.agility}
-                  onPress={() => adjustAttribute('agility')}
-                />
-                <AttributeValue
-                  label="PER"
-                  value={draft.attributes.perception}
-                  onPress={() => adjustAttribute('perception')}
-                />
+                {LEFT_ATTRIBUTES.map(({ label, key }) => (
+                  <AttributeRow
+                    key={key}
+                    label={label}
+                    value={draft.attributes[key]}
+                    max={MAX_ATTRIBUTE}
+                    onChange={(direction) => adjustAttribute(key, direction)}
+                  />
+                ))}
               </View>
               <View style={styles.attributesColumn}>
-                <AttributeValue
-                  label="INT"
-                  value={draft.attributes.intelligence}
-                  onPress={() => adjustAttribute('intelligence')}
+                {RIGHT_ATTRIBUTES.map(({ label, key }) => (
+                  <AttributeRow
+                    key={key}
+                    label={label}
+                    value={draft.attributes[key]}
+                    max={MAX_ATTRIBUTE}
+                    onChange={(direction) => adjustAttribute(key, direction)}
+                  />
+                ))}
+                <AttributeRow
+                  label="Points:"
+                  labelStyle={styles.pointsLabel}
+                  value={draft.abilityPoints}
+                  max={MAX_ABILITY_POINTS}
+                  onChange={adjustAbilityPoints}
                 />
-                <AttributeValue
-                  label="VIT"
-                  value={draft.attributes.vitality}
-                  onPress={() => adjustAttribute('vitality')}
-                />
-                <View style={styles.pointsRow}>
-                  <Text style={styles.pointsLabel}>Points:</Text>
-                  <Pressable onPress={adjustAbilityPoints}>
-                    <Text style={styles.pointsValue}>{draft.abilityPoints}</Text>
-                  </Pressable>
-                </View>
               </View>
             </View>
           </View>
 
           <View style={styles.rewardsRow}>
-            <RewardBox icon="crosshair" label="COINS" value={draft.rewards.coins} onPress={() => adjustReward('coins')} />
-            <RewardBox icon="crosshair" label="XP" value={draft.rewards.xp} onPress={() => adjustReward('xp')} />
+            <RewardBox
+              icon="crosshair"
+              label="COINS"
+              value={draft.rewards.coins}
+              max={REWARD_LIMITS.coins.max}
+              onChange={(direction) => adjustReward('coins', direction)}
+            />
+            <RewardBox
+              icon="crosshair"
+              label="XP"
+              value={draft.rewards.xp}
+              max={REWARD_LIMITS.xp.max}
+              onChange={(direction) => adjustReward('xp', direction)}
+            />
           </View>
 
           <SectionLabel icon="check" text="CONTAGEM" />
@@ -171,6 +219,44 @@ export function MissionEditorSheet({
             </Text>
           </Pressable>
 
+          {/* Meta: sem isso, "numeric"/"distance" ficavam eternamente em 0. */}
+          {isCounter(draft.count) && (
+            <>
+              <SectionLabel icon="target" text={isDistance ? 'META (KM)' : 'META'} />
+              <View style={styles.targetRow}>
+                <Stepper
+                  value={draft.count.target ?? 0}
+                  onDecrement={() => adjustTarget(-1)}
+                  onIncrement={() => adjustTarget(1)}
+                  canDecrement={(draft.count.target ?? 0) > 0}
+                  canIncrement={(draft.count.target ?? 0) < MAX_TARGET}
+                  size={26}
+                  valueMinWidth={56}
+                  valueStyle={styles.targetValue}
+                />
+              </View>
+            </>
+          )}
+
+          {/* Descrição: o método "text" não tinha como ser preenchido. */}
+          {draft.count.method === 'text' && (
+            <>
+              <SectionLabel icon="edit-3" text="DESCRIÇÃO" />
+              <View style={[styles.pickerField, styles.textField]}>
+                <TextInput
+                  value={draft.count.text ?? ''}
+                  onChangeText={(text) =>
+                    setDraft((prev) => ({ ...prev, count: { ...prev.count, text } }))
+                  }
+                  placeholder="ex: gastar -20R"
+                  placeholderTextColor={Hud.textMuted}
+                  maxLength={24}
+                  style={styles.pickerFieldText}
+                />
+              </View>
+            </>
+          )}
+
           <SectionLabel icon="link" text="CONECTAR As" />
           <Pressable style={styles.pickerField} onPress={() => setConnectSheetOpen(true)}>
             <Text style={styles.pickerFieldText} numberOfLines={1}>
@@ -179,9 +265,9 @@ export function MissionEditorSheet({
           </Pressable>
 
           <Pressable
-            disabled={!draft.title.trim()}
+            disabled={!canConfirm}
             onPress={handleConfirmar}
-            style={[styles.confirmButton, !draft.title.trim() && styles.confirmButtonDisabled]}>
+            style={[styles.confirmButton, !canConfirm && styles.confirmButtonDisabled]}>
             <Text style={styles.confirmText}>CONFIRMAR</Text>
           </Pressable>
         </ScrollView>
@@ -189,9 +275,16 @@ export function MissionEditorSheet({
 
       <MissionCountMethodSheet
         visible={countSheetOpen}
-        initialMethod={draft.count.method}
+        initialCount={draft.count}
         onClose={() => setCountSheetOpen(false)}
-        onSelect={(count) => setDraft((prev) => ({ ...prev, count }))}
+        onSelect={(count) =>
+          setDraft((prev) => ({
+            ...prev,
+            count,
+            // Método novo = contagem nova, então a missão volta a pendente.
+            completed: false,
+          }))
+        }
       />
 
       <MissionConnectSheet
@@ -215,20 +308,32 @@ function SectionLabel({ icon, text }: { icon: keyof typeof Feather.glyphMap; tex
   );
 }
 
-function AttributeValue({
+function AttributeRow({
   label,
+  labelStyle,
   value,
-  onPress,
+  max,
+  onChange,
 }: {
   label: string;
+  labelStyle?: object;
   value: number;
-  onPress: () => void;
+  max: number;
+  onChange: (direction: 1 | -1) => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={styles.attributeRow} hitSlop={6}>
-      <Text style={styles.attributeLabel}>{label}:</Text>
-      <Text style={styles.attributeValue}>{value}</Text>
-    </Pressable>
+    <View style={styles.attributeRow}>
+      <Text style={[styles.attributeLabel, labelStyle]}>{label.includes(':') ? label : `${label}:`}</Text>
+      <Stepper
+        value={value}
+        size={20}
+        valueMinWidth={16}
+        canDecrement={value > 0}
+        canIncrement={value < max}
+        onDecrement={() => onChange(-1)}
+        onIncrement={() => onChange(1)}
+      />
+    </View>
   );
 }
 
@@ -236,21 +341,32 @@ function RewardBox({
   icon,
   label,
   value,
-  onPress,
+  max,
+  onChange,
 }: {
   icon: keyof typeof Feather.glyphMap;
   label: string;
   value: number;
-  onPress: () => void;
+  max: number;
+  onChange: (direction: 1 | -1) => void;
 }) {
   return (
-    <Pressable style={styles.rewardBox} onPress={onPress}>
+    <View style={styles.rewardBox}>
       <View style={styles.rewardHeader}>
         <Feather name={icon} size={12} color={Hud.textLabel} />
         <Text style={styles.rewardLabel}>{label}</Text>
       </View>
-      <Text style={styles.rewardValue}>{value}</Text>
-    </Pressable>
+      <Stepper
+        value={value}
+        size={22}
+        valueMinWidth={38}
+        valueStyle={styles.rewardValue}
+        canDecrement={value > 0}
+        canIncrement={value < max}
+        onDecrement={() => onChange(-1)}
+        onIncrement={() => onChange(1)}
+      />
+    </View>
   );
 }
 
@@ -308,43 +424,25 @@ const styles = StyleSheet.create({
   },
   attributesColumns: {
     flexDirection: 'row',
+    gap: 10,
   },
   attributesColumn: {
     flex: 1,
-    gap: 12,
+    gap: 10,
   },
-  // Sem Feather aqui de propósito — a referência não mostra nenhum
-  // controle visível de +/-. Tocar no número incrementa (ver
-  // adjustAttribute), sem poluir a tela com botões extras.
   attributeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
   },
   attributeLabel: {
     color: Hud.textLabel,
     fontSize: 12,
     fontWeight: '600',
-    width: 30,
-  },
-  attributeValue: {
-    color: Hud.textPrimary,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  pointsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
   },
   pointsLabel: {
     color: Hud.textMuted,
     fontSize: 10,
-  },
-  pointsValue: {
-    color: Hud.textPrimary,
-    fontSize: 13,
-    fontWeight: '700',
   },
   rewardsRow: {
     flexDirection: 'row',
@@ -357,15 +455,13 @@ const styles = StyleSheet.create({
     borderColor: Hud.panelBorder,
     borderRadius: 8,
     padding: 12,
-    // Alinhado à esquerda — a referência não centraliza o conteúdo
-    // dessas caixas.
     alignItems: 'flex-start',
   },
   rewardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   rewardLabel: {
     color: Hud.textLabel,
@@ -374,9 +470,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   rewardValue: {
-    color: Hud.textPrimary,
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 20,
     textShadowColor: Hud.glow,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 10,
@@ -397,15 +491,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Hud.panelBorder,
     borderRadius: 6,
-    // Mais fino que antes — a referência é uma linha só, não uma caixa alta.
     paddingVertical: 8,
     paddingHorizontal: 10,
     marginBottom: 14,
+  },
+  textField: {
+    paddingVertical: 4,
   },
   pickerFieldText: {
     fontFamily: HudMono,
     color: Hud.textPrimary,
     fontSize: 13,
+  },
+  targetRow: {
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  targetValue: {
+    fontFamily: HudMono,
+    fontSize: 16,
   },
   confirmButton: {
     borderTopWidth: 1,

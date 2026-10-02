@@ -15,7 +15,7 @@ import { HudPressable } from '@/components/hud-pressable';
 import { StepButton } from '@/components/hud-stepper';
 import { MissionEditorSheet } from '@/components/mission-editor-sheet';
 import { Hud, HudMono } from '@/constants/hud';
-import { useDailyMissions } from '@/hooks/useDailyMissions';
+import { useGame } from '@/context/game-context';
 import {
   clamp,
   createMissionId,
@@ -29,15 +29,18 @@ import {
 // ---------------------------------------------------------------------------
 // Tela de Missão Diária.
 //
-// As missões são salvas no storage do aparelho (IndexedDB no PWA) a cada
-// alteração — criar, editar, excluir, marcar e mexer no +/-. Ver
-// hooks/useDailyMissions.ts. O modelo (DailyMission, em
-// types/mission-editor.ts) ainda é separado do Mission antigo usado pelo
-// Status/usePlayer.
+// O estado das missões vive no GameProvider (context/game-context.tsx), que
+// salva no storage a cada alteração, entrega as recompensas ao jogador (o
+// Status lê do mesmo lugar) quando uma missão é concluída e reseta as
+// diárias a cada 24h. Aqui só desenhamos a lista e chamamos `setMissions`.
 // ---------------------------------------------------------------------------
 
 export function MissionsScreen() {
-  const { missions, setMissions, loaded } = useDailyMissions();
+  const {
+    dailyMissions: missions,
+    updateDailyMissions: setMissions,
+    ready: loaded,
+  } = useGame();
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingMission, setEditingMission] = useState<DailyMission | null>(null);
   /** Id da missão com a barra de editar/excluir aberta (long-press de 2s). */

@@ -17,6 +17,8 @@ const KEYS = {
   /** Missões do modelo novo (`DailyMission`), usadas pela tela de Missões.
    * Chave separada de `missions` porque o formato é outro. */
   dailyMissions: '@solo:daily-missions',
+  /** Timestamp (ms) do início do ciclo atual de 24h das missões diárias. */
+  dailyCycleStart: '@solo:daily-cycle-start',
 } as const;
 
 async function readJSON<T>(key: string): Promise<T | null> {
@@ -39,6 +41,20 @@ async function writeJSON<T>(key: string, value: T): Promise<boolean> {
   }
 }
 
+// Fila de escrita por chave: cada ação do usuário salva logo em seguida, e
+// duas gravações assíncronas disparadas em sequência podem terminar fora de
+// ordem — aí o estado ANTIGO sobrescreveria o novo. Encadeando, a última
+// chamada é sempre a última a ser gravada. `writeJSON` nunca rejeita, então
+// a fila não quebra no meio.
+const writeQueues = new Map<string, Promise<unknown>>();
+
+function queuedWrite<T>(key: string, value: T): Promise<boolean> {
+  const previous = writeQueues.get(key) ?? Promise.resolve();
+  const task = previous.then(() => writeJSON(key, value));
+  writeQueues.set(key, task);
+  return task;
+}
+
 /**
  * Sempre passa o que veio do disco por `normalizePlayer`: saves gravados
  * por versões anteriores do app não têm `title`/`abilityPoints`, e a UI
@@ -50,7 +66,7 @@ export async function loadPlayer(): Promise<Player> {
 }
 
 export async function savePlayer(player: Player): Promise<boolean> {
-  return writeJSON(KEYS.player, player);
+  return queuedWrite(KEYS.player, player);
 }
 
 export async function loadMissions(): Promise<Mission[]> {
@@ -72,22 +88,28 @@ export async function loadDailyMissions(): Promise<DailyMission[] | null> {
   return normalizeDailyMissions(stored);
 }
 
-// Fila de escrita: cada toque no +/- salva logo em seguida, e duas gravações
-// assíncronas disparadas em sequência podem terminar fora de ordem — aí o
-// estado ANTIGO sobrescreveria o novo. Encadeando, a última chamada é
-// sempre a última a ser gravada. `writeJSON` nunca rejeita, então a fila
-// não quebra no meio.
-let dailyMissionsWriteQueue: Promise<unknown> = Promise.resolve();
-
 export function saveDailyMissions(missions: DailyMission[]): Promise<boolean> {
-  const task = dailyMissionsWriteQueue.then(() => writeJSON(KEYS.dailyMissions, missions));
-  dailyMissionsWriteQueue = task;
-  return task;
+  return queuedWrite(KEYS.dailyMissions, missions);
+}
+
+/** Início do ciclo de 24h das missões diárias, ou null se ainda não existe. */
+export async function loadDailyCycleStart(): Promise<number | null> {
+  const stored = await readJSON<unknown>(KEYS.dailyCycleStart);
+  return typeof stored === 'number' && Number.isFinite(stored) ? stored : null;
+}
+
+export function saveDailyCycleStart(timestamp: number): Promise<boolean> {
+  return queuedWrite(KEYS.dailyCycleStart, timestamp);
 }
 
 /** Apaga o save inteiro. Usado no botão de "recomeçar do zero". */
 export async function clearSave(): Promise<void> {
-  await AsyncStorage.removeMany([KEYS.player, KEYS.missions, KEYS.dailyMissions]);
+  await AsyncStorage.removeMany([
+    KEYS.player,
+    KEYS.missions,
+    KEYS.dailyMissions,
+    KEYS.dailyCycleStart,
+  ]);
 }
 
 /**

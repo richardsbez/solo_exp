@@ -4,24 +4,24 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 
 import { ATTRIBUTE_DISPLAY_ORDER, ATTRIBUTE_SHORT_LABELS } from '@/constants/game';
 import { Hud } from '@/constants/hud';
-import { usePlayer } from '@/hooks/usePlayer';
+import { useGame } from '@/context/game-context';
 
 // ---------------------------------------------------------------------------
 // Tela de Status — janela do Sistema no estilo "Solo Leveling".
 //
-// Lê o estado real via usePlayer(): tudo que aparece aqui vem do save
+// Lê o estado real via useGame() (context/game-context.tsx): tudo aqui vem do save
 // gravado no IndexedDB do aparelho. Virou um painel do HudSwipePager (ver
 // app/index.tsx), então não tem mais fundo/StatusBar/barra próprios — só
 // o conteúdo mesmo.
 // ---------------------------------------------------------------------------
 
 export function StatusScreen() {
-  const { player, missions, loading, xpPercentage } = usePlayer();
+  const { player, dailyMissions, ready, xpPercentage } = useGame();
 
   // Progresso das diárias de hoje. Ocupa o lugar da segunda barra do
   // design (que era "MP" mockada) com algo que de fato existe no sistema.
   const dailyProgress = useMemo(() => {
-    const daily = missions.filter((mission) => mission.isDaily);
+    const daily = dailyMissions.filter((mission) => mission.category === 'diaria');
     if (daily.length === 0) return { percent: 0, done: 0, total: 0 };
     const done = daily.filter((mission) => mission.completed).length;
     return {
@@ -29,11 +29,11 @@ export function StatusScreen() {
       done,
       total: daily.length,
     };
-  }, [missions]);
+  }, [dailyMissions]);
 
   // Enquanto o save é lido do disco, `player` é null. Mostrar um spinner
   // no mesmo fundo evita o flash de "level 1" antes dos dados reais.
-  if (loading || !player) {
+  if (!ready || !player) {
     return (
       <View style={styles.loadingScreen}>
         <ActivityIndicator color={Hud.glow} />
@@ -68,6 +68,10 @@ export function StatusScreen() {
           <View style={styles.identityLine}>
             <Text style={styles.identityLabel}>TITLE:</Text>
             <Text style={styles.identityValue}>{player.title}</Text>
+          </View>
+          <View style={styles.identityLine}>
+            <Text style={styles.identityLabel}>COINS:</Text>
+            <Text style={styles.identityValue}>{player.coins}</Text>
           </View>
         </View>
       </View>

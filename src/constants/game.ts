@@ -45,6 +45,10 @@ export const BASE_XP_TO_LEVEL_2 = 100;
 /** Pontos livres concedidos a cada level up. */
 export const POINTS_PER_LEVEL = 3;
 
+/** Duração do ciclo das missões diárias: passou esse tempo desde o início
+ * do ciclo, as missões da categoria "diaria" voltam a pendente. */
+export const DAILY_RESET_MS = 24 * 60 * 60 * 1000;
+
 /** Título inicial de todo jogador recém-desperto. */
 export const DEFAULT_TITLE = 'Novato';
 
@@ -68,6 +72,7 @@ export function createDefaultPlayer(name = 'Caçador'): Player {
     xpToNextLevel: BASE_XP_TO_LEVEL_2,
     attributes: createDefaultAttributes(),
     abilityPoints: 0,
+    coins: 0,
     createdAt: now,
     updatedAt: now,
   };
@@ -90,6 +95,7 @@ export function normalizePlayer(stored: Partial<Player> | null | undefined): Pla
     ...stored,
     title: stored.title ?? fallback.title,
     abilityPoints: stored.abilityPoints ?? 0,
+    coins: typeof stored.coins === 'number' && Number.isFinite(stored.coins) ? stored.coins : 0,
     attributes: {
       ...fallback.attributes,
       ...(stored.attributes ?? {}),

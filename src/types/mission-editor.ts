@@ -50,6 +50,10 @@ export interface DailyMission {
    * concluir uma conclui (ou reseta) todas as vinculadas junto. */
   linkedMissionIds: string[];
   completed: boolean;
+  /** true depois que as recompensas (XP, atributos, pontos, coins) desta
+   * missão já foram entregues ao jogador neste ciclo. Impede pagar duas
+   * vezes por marcar/desmarcar; volta a false no reset diário. */
+  rewardClaimed: boolean;
 }
 
 export function createEmptyAttributes(): AttributeAllocation {
@@ -67,6 +71,7 @@ export function createDraftMission(): DailyMission {
     count: { method: 'check', checked: false },
     linkedMissionIds: [],
     completed: false,
+    rewardClaimed: false,
   };
 }
 
@@ -149,6 +154,7 @@ export function createDefaultDailyMissions(): DailyMission[] {
       count: { method: 'numeric', target: 100, progress: 0 },
       linkedMissionIds: [],
       completed: false,
+      rewardClaimed: false,
     },
     {
       id: 'seed-squats',
@@ -160,6 +166,9 @@ export function createDefaultDailyMissions(): DailyMission[] {
       count: { method: 'check', checked: true },
       linkedMissionIds: [],
       completed: true,
+      // Já nasce concluída: marcada como paga pra não dar XP de graça
+      // na primeira abertura.
+      rewardClaimed: true,
     },
     {
       id: 'seed-run',
@@ -171,6 +180,7 @@ export function createDefaultDailyMissions(): DailyMission[] {
       count: { method: 'distance', target: 10, progress: 0 },
       linkedMissionIds: [],
       completed: false,
+      rewardClaimed: false,
     },
     {
       id: 'seed-compras',
@@ -182,6 +192,7 @@ export function createDefaultDailyMissions(): DailyMission[] {
       count: { method: 'text', text: 'gastar -20R' },
       linkedMissionIds: [],
       completed: false,
+      rewardClaimed: false,
     },
   ];
 }
@@ -230,6 +241,10 @@ export function normalizeDailyMission(raw: unknown): DailyMission | null {
       ? m.linkedMissionIds.filter((id: unknown): id is string => typeof id === 'string')
       : [],
     completed: m.completed === true,
+    // Saves anteriores a este campo: missão que já estava concluída
+    // conta como paga (senão a próxima ação pagaria retroativamente).
+    rewardClaimed:
+      typeof m.rewardClaimed === 'boolean' ? m.rewardClaimed : m.completed === true,
   };
 }
 

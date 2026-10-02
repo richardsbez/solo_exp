@@ -54,6 +54,8 @@ export interface Player {
    * exatamente o que o design do Figma pede.
    */
   abilityPoints: number;
+  /** Moeda ganha ao concluir missões (campo `rewards.coins` da missão). */
+  coins: number;
   createdAt: string;
   updatedAt: string;
 }

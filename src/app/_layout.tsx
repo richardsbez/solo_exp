@@ -6,6 +6,7 @@ import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { GameProvider } from '@/context/game-context';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -19,7 +20,10 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <AnimatedSplashOverlay />
-        <Stack screenOptions={{ headerShown: false }} />
+        {/* Estado único de jogador + missões, compartilhado por todas as abas. */}
+        <GameProvider>
+          <Stack screenOptions={{ headerShown: false }} />
+        </GameProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

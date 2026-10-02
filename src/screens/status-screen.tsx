@@ -203,15 +203,14 @@ const styles = StyleSheet.create({
   },
   headerText: {
     color: Hud.textPrimary,
-    fontSize: 15,
+    fontSize: 19,
     fontWeight: '600',
-    letterSpacing: 8,
-    // Mesmo glow do título de missions-screen — antes o STATUS era um
-    // texto "chapado" (sem sombra), destoando do resto do app.
+    letterSpacing: 4,
     textShadowColor: Hud.glow,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 14,
   },
+
   headerMenu: {
     position: 'absolute',
     right: 14,

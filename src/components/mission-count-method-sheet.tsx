@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { HudPressable } from '@/components/hud-pressable';
 import { HudSheet } from '@/components/hud-sheet';
 import { Hud, HudMono } from '@/constants/hud';
 import type { CountConfig, CountMethod } from '@/types/mission-editor';
@@ -36,10 +37,13 @@ export function MissionCountMethodSheet({
 }: MissionCountMethodSheetProps) {
   const [selected, setSelected] = useState<CountMethod>(initialCount.method);
 
-  // Reabre sempre mostrando o método atual da missão marcado.
-  useEffect(() => {
+  // Reabre sempre mostrando o método atual marcado — no próprio render
+  // da abertura, sem o frame extra de um useEffect.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
     if (visible) setSelected(initialCount.method);
-  }, [visible, initialCount.method]);
+  }
 
   const handleSelecionar = () => {
     // Mesmo método: nada muda. Antes, reabrir e confirmar zerava a meta.
@@ -52,9 +56,9 @@ export function MissionCountMethodSheet({
     // herdar um alvo numérico de quando a missão era "numeric".
     const next: CountConfig =
       selected === 'numeric'
-        ? { method: 'numeric', target: 0, progress: 0 }
+        ? { method: 'numeric', target: 10, progress: 0 }
         : selected === 'distance'
-          ? { method: 'distance', target: 0, progress: 0 }
+          ? { method: 'distance', target: 5, progress: 0 }
           : selected === 'text'
             ? { method: 'text', text: '' }
             : { method: 'check', checked: false };
@@ -64,14 +68,14 @@ export function MissionCountMethodSheet({
   };
 
   return (
-    <HudSheet visible={visible} onRequestClose={onClose}>
+    <HudSheet visible={visible} onRequestClose={onClose} nested>
       <Text style={styles.title}>Selecione O Método:{'\n'}Contagem Ou Descritivo.</Text>
 
       <View style={styles.list}>
         {METHODS.map((option) => {
           const isSelected = option.method === selected;
           return (
-            <Pressable
+            <HudPressable
               key={option.method}
               onPress={() => setSelected(option.method)}
               accessibilityRole="radio"
@@ -80,14 +84,14 @@ export function MissionCountMethodSheet({
               <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
                 {option.label}
               </Text>
-            </Pressable>
+            </HudPressable>
           );
         })}
       </View>
 
-      <Pressable onPress={handleSelecionar} style={styles.confirmButton}>
+      <HudPressable onPress={handleSelecionar} style={styles.confirmButton}>
         <Text style={styles.confirmText}>SELECIONAR</Text>
-      </Pressable>
+      </HudPressable>
     </HudSheet>
   );
 }

@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { HudPressable } from '@/components/hud-pressable';
 import { HudSheet } from '@/components/hud-sheet';
 import { Stepper } from '@/components/hud-stepper';
 import { MissionConnectSheet } from '@/components/mission-connect-sheet';
@@ -68,10 +69,15 @@ export function MissionEditorSheet({
   const [connectSheetOpen, setConnectSheetOpen] = useState(false);
 
   // Toda vez que o painel abre, recarrega o rascunho — com os dados da
-  // missão em edição, ou em branco pra uma nova.
-  useEffect(() => {
+  // missão em edição, ou em branco pra uma nova. Feito NO render em que
+  // `visible` vira true (não num useEffect): o efeito rodava depois do
+  // primeiro paint, então o painel abria 1 frame com o rascunho antigo
+  // e "piscava" — parecia atraso na transição.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
     if (visible) setDraft(editingMission ?? createDraftMission());
-  }, [visible, editingMission]);
+  }
 
   const adjustAttribute = (key: AttributeKey, direction: 1 | -1) => {
     setDraft((prev) => ({
@@ -136,6 +142,8 @@ export function MissionEditorSheet({
               placeholder="NOME DA MISSAO...."
               placeholderTextColor={Hud.textMuted}
               maxLength={40}
+              returnKeyType="done"
+              onSubmitEditing={handleConfirmar}
               style={styles.titleInput}
             />
           </View>
@@ -145,14 +153,14 @@ export function MissionEditorSheet({
             {CATEGORY_TABS.map((tab) => {
               const isActive = draft.category === tab.key;
               return (
-                <Pressable
+                <HudPressable
                   key={tab.key}
                   onPress={() => setDraft((prev) => ({ ...prev, category: tab.key }))}
                   style={[styles.tab, isActive && styles.tabActive]}>
                   <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
                     {tab.label}
                   </Text>
-                </Pressable>
+                </HudPressable>
               );
             })}
           </View>
@@ -209,7 +217,7 @@ export function MissionEditorSheet({
           </View>
 
           <SectionLabel icon="check" text="CONTAGEM" />
-          <Pressable style={styles.pickerField} onPress={() => setCountSheetOpen(true)}>
+          <HudPressable style={styles.pickerField} onPress={() => setCountSheetOpen(true)}>
             <Text style={styles.pickerFieldText}>
               {draft.count.method === 'check'
                 ? '[✓]'
@@ -217,7 +225,7 @@ export function MissionEditorSheet({
                   ? `[${formatCountConfig(draft.count)}]`
                   : ''}
             </Text>
-          </Pressable>
+          </HudPressable>
 
           {/* Meta: sem isso, "numeric"/"distance" ficavam eternamente em 0. */}
           {isCounter(draft.count) && (
@@ -258,22 +266,23 @@ export function MissionEditorSheet({
           )}
 
           <SectionLabel icon="link" text="CONECTAR As" />
-          <Pressable style={styles.pickerField} onPress={() => setConnectSheetOpen(true)}>
+          <HudPressable style={styles.pickerField} onPress={() => setConnectSheetOpen(true)}>
             <Text style={styles.pickerFieldText} numberOfLines={1}>
               {connectedTitles}
             </Text>
-          </Pressable>
+          </HudPressable>
 
-          <Pressable
+          <HudPressable
             disabled={!canConfirm}
             onPress={handleConfirmar}
             style={[styles.confirmButton, !canConfirm && styles.confirmButtonDisabled]}>
             <Text style={styles.confirmText}>CONFIRMAR</Text>
-          </Pressable>
+          </HudPressable>
         </ScrollView>
       </HudSheet>
 
       <MissionCountMethodSheet
+        nested
         visible={countSheetOpen}
         initialCount={draft.count}
         onClose={() => setCountSheetOpen(false)}

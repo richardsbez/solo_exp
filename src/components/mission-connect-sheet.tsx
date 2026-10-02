@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { HudPressable } from '@/components/hud-pressable';
 import { HudSheet } from '@/components/hud-sheet';
 import { Hud, HudMono } from '@/constants/hud';
 import { formatCountConfig, type DailyMission } from '@/types/mission-editor';
@@ -28,9 +29,13 @@ export function MissionConnectSheet({
 }: MissionConnectSheetProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedIds);
 
-  useEffect(() => {
+  // Recarrega a seleção NO render em que o painel abre (não num useEffect,
+  // que deixava 1 frame com a seleção antiga piscando na tela).
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
     if (visible) setSelectedIds(initialSelectedIds);
-  }, [visible, initialSelectedIds]);
+  }
 
   const toggle = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
@@ -42,12 +47,17 @@ export function MissionConnectSheet({
   const candidates = missions.filter((mission) => mission.id !== excludeMissionId);
 
   return (
-    <HudSheet visible={visible} onRequestClose={onClose}>
+    <HudSheet visible={visible} onRequestClose={onClose} nested>
       <Text style={styles.title}>
         Selecione As Missões Que Compartilharão O{'\n'}Mesmo Progresso.
       </Text>
 
-      <View style={styles.list}>
+      {/* ScrollView com teto de altura: com muitas missões a lista rola
+          em vez de empurrar o botão SELECIONAR pra fora do painel. */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}>
         {candidates.length === 0 ? (
           <Text style={styles.emptyText}>Nenhuma outra missão criada ainda.</Text>
         ) : (
@@ -55,8 +65,16 @@ export function MissionConnectSheet({
             const isSelected = selectedIds.includes(mission.id);
             const goalText = formatCountConfig(mission.count);
             return (
-              <Pressable key={mission.id} onPress={() => toggle(mission.id)} style={styles.row}>
-                <Text style={styles.rowTitle}>{mission.title}</Text>
+              <HudPressable
+                key={mission.id}
+                onPress={() => toggle(mission.id)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: isSelected }}
+                pressedOpacity={0.6}
+                style={styles.row}>
+                <Text style={styles.rowTitle} numberOfLines={1}>
+                  {mission.title}
+                </Text>
                 <View style={styles.rowRight}>
                   {mission.count.method === 'check' ? (
                     <Text style={styles.rowGoal}>
@@ -69,20 +87,20 @@ export function MissionConnectSheet({
                     {isSelected && <Text style={styles.checkboxMark}>✓</Text>}
                   </View>
                 </View>
-              </Pressable>
+              </HudPressable>
             );
           })
         )}
-      </View>
+      </ScrollView>
 
-      <Pressable
+      <HudPressable
         onPress={() => {
           onSelect(selectedIds);
           onClose();
         }}
         style={styles.confirmButton}>
         <Text style={styles.confirmText}>SELECIONAR</Text>
-      </Pressable>
+      </HudPressable>
     </HudSheet>
   );
 }
@@ -92,16 +110,19 @@ const styles = StyleSheet.create({
     fontFamily: HudMono,
     color: Hud.textLabel,
     // Um pouco menor que o do outro submenu — "Compartilharão O" é uma
-    // linha comprida e com 12px quebrava feio, deixando o "O" sozinho
-    // numa linha própria.
+    // linha comprida e com 12px quebrava feio.
     fontSize: 11,
     textAlign: 'center',
     lineHeight: 17,
     marginBottom: 18,
   },
-  list: {
-    gap: 16,
+  scroll: {
+    maxHeight: 280,
+    flexGrow: 0,
     marginBottom: 20,
+  },
+  list: {
+    gap: 6,
   },
   emptyText: {
     color: Hud.textMuted,
@@ -112,10 +133,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    // Área de toque maior que o texto (antes era só a altura da fonte).
+    paddingVertical: 8,
   },
   rowTitle: {
+    flexShrink: 1,
     color: Hud.textPrimary,
     fontSize: 15,
+    marginRight: 8,
   },
   rowRight: {
     flexDirection: 'row',

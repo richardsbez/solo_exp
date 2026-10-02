@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { HudPressable } from '@/components/hud-pressable';
 import { StepButton } from '@/components/hud-stepper';
 import { MissionEditorSheet } from '@/components/mission-editor-sheet';
 import { Hud, HudMono } from '@/constants/hud';
@@ -200,10 +201,10 @@ export function MissionsScreen() {
         ))}
       </View>
 
-      <Pressable style={styles.addRow} onPress={openCreate}>
+      <HudPressable style={styles.addRow} onPress={openCreate}>
         <Feather name="plus" size={12} color={Hud.textMuted} />
         <Text style={styles.addRowText}>ADD MISSAO DIARIA</Text>
-      </Pressable>
+      </HudPressable>
 
       <View style={styles.warningBlock}>
         <Text style={styles.warningText}>
@@ -292,15 +293,53 @@ function MissionRow({
             onPress={() => onAdjustProgress(1)}
           />
         )}
-        <Pressable
+        <Checkbox
+          checked={mission.completed}
           onPress={hasOtherActionOpen ? onDismissActions : onPressCheckbox}
-          hitSlop={8}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: mission.completed }}
-          style={[styles.checkbox, mission.completed && styles.checkboxChecked]}>
-          {mission.completed && <Text style={styles.checkboxMark}>✓</Text>}
-        </Pressable>
+        />
       </View>
+    </Pressable>
+  );
+}
+
+/** Checkbox com um "pulinho" (escala 1 → 1.25 → 1) ao mudar de estado —
+ * confirma o toque na hora, sem esperar nada re-renderizar. Não anima na
+ * primeira montagem. */
+function Checkbox({ checked, onPress }: { checked: boolean; onPress: () => void }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    Animated.sequence([
+      Animated.timing(scale, {
+        toValue: 1.25,
+        duration: 80,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 5,
+        tension: 200,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+    ]).start();
+  }, [checked, scale]);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={10}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}>
+      <Animated.View
+        style={[styles.checkbox, checked && styles.checkboxChecked, { transform: [{ scale }] }]}>
+        {checked && <Text style={styles.checkboxMark}>✓</Text>}
+      </Animated.View>
     </Pressable>
   );
 }

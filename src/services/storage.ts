@@ -2,6 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { createDefaultMissions, normalizePlayer } from '@/constants/game';
 import type { Mission, Player } from '@/types/game';
+import {
+  createDefaultDailyMissions,
+  normalizeDailyMissions,
+  type DailyMission,
+} from '@/types/mission-editor';
 
 // No web, o AsyncStorage 3.x usa IndexedDB por baixo dos panos (não mais
 // localStorage), então não temos o limite de ~5MB nem operações
@@ -9,6 +14,9 @@ import type { Mission, Player } from '@/types/game';
 const KEYS = {
   player: '@solo:player',
   missions: '@solo:missions',
+  /** Missões do modelo novo (`DailyMission`), usadas pela tela de Missões.
+   * Chave separada de `missions` porque o formato é outro. */
+  dailyMissions: '@solo:daily-missions',
 } as const;
 
 async function readJSON<T>(key: string): Promise<T | null> {
@@ -54,9 +62,32 @@ export async function saveMissions(missions: Mission[]): Promise<boolean> {
   return writeJSON(KEYS.missions, missions);
 }
 
+/**
+ * Lê as missões da tela de Missões. Devolve null quando não há nada salvo
+ * (primeira abertura) ou o dado está corrompido — quem chama decide usar os
+ * exemplos. Uma lista vazia salva é devolvida como `[]`, não como null.
+ */
+export async function loadDailyMissions(): Promise<DailyMission[] | null> {
+  const stored = await readJSON<unknown>(KEYS.dailyMissions);
+  return normalizeDailyMissions(stored);
+}
+
+// Fila de escrita: cada toque no +/- salva logo em seguida, e duas gravações
+// assíncronas disparadas em sequência podem terminar fora de ordem — aí o
+// estado ANTIGO sobrescreveria o novo. Encadeando, a última chamada é
+// sempre a última a ser gravada. `writeJSON` nunca rejeita, então a fila
+// não quebra no meio.
+let dailyMissionsWriteQueue: Promise<unknown> = Promise.resolve();
+
+export function saveDailyMissions(missions: DailyMission[]): Promise<boolean> {
+  const task = dailyMissionsWriteQueue.then(() => writeJSON(KEYS.dailyMissions, missions));
+  dailyMissionsWriteQueue = task;
+  return task;
+}
+
 /** Apaga o save inteiro. Usado no botão de "recomeçar do zero". */
 export async function clearSave(): Promise<void> {
-  await AsyncStorage.removeMany([KEYS.player, KEYS.missions]);
+  await AsyncStorage.removeMany([KEYS.player, KEYS.missions, KEYS.dailyMissions]);
 }
 
 /**
@@ -65,8 +96,17 @@ export async function clearSave(): Promise<void> {
  * uma troca de iPhone apaga o progresso sem chance de recuperar.
  */
 export async function exportSave(): Promise<string> {
-  const [player, missions] = await Promise.all([loadPlayer(), loadMissions()]);
-  return JSON.stringify({ player, missions, exportedAt: new Date().toISOString() }, null, 2);
+  const [player, missions, storedDaily] = await Promise.all([
+    loadPlayer(),
+    loadMissions(),
+    loadDailyMissions(),
+  ]);
+  const dailyMissions = storedDaily ?? createDefaultDailyMissions();
+  return JSON.stringify(
+    { player, missions, dailyMissions, exportedAt: new Date().toISOString() },
+    null,
+    2
+  );
 }
 
 /**
@@ -76,9 +116,27 @@ export async function exportSave(): Promise<string> {
  */
 export async function importSave(json: string): Promise<boolean> {
   try {
-    const parsed = JSON.parse(json) as { player?: Partial<Player>; missions?: Mission[] };
+    const parsed = JSON.parse(json) as {
+      player?: Partial<Player>;
+      missions?: Mission[];
+      dailyMissions?: unknown;
+    };
     if (!parsed.player || !parsed.missions) return false;
-    await Promise.all([savePlayer(normalizePlayer(parsed.player)), saveMissions(parsed.missions)]);
+
+    // `dailyMissions` não existe em backups antigos — nesse caso o save
+    // atual das missões diárias é mantido. Se existir mas estiver
+    // inválido, recusa tudo antes de gravar qualquer coisa.
+    let dailyMissions: DailyMission[] | null = null;
+    if (parsed.dailyMissions !== undefined) {
+      dailyMissions = normalizeDailyMissions(parsed.dailyMissions);
+      if (!dailyMissions) return false;
+    }
+
+    await Promise.all([
+      savePlayer(normalizePlayer(parsed.player)),
+      saveMissions(parsed.missions),
+      dailyMissions ? saveDailyMissions(dailyMissions) : Promise.resolve(true),
+    ]);
     return true;
   } catch (error) {
     console.error('[storage] Falha ao importar backup', error);

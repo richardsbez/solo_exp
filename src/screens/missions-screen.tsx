@@ -1,11 +1,21 @@
 import { Feather } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { HudPressable } from '@/components/hud-pressable';
 import { StepButton } from '@/components/hud-stepper';
 import { MissionEditorSheet } from '@/components/mission-editor-sheet';
 import { Hud, HudMono } from '@/constants/hud';
+import { useDailyMissions } from '@/hooks/useDailyMissions';
 import {
   clamp,
   createMissionId,
@@ -19,62 +29,15 @@ import {
 // ---------------------------------------------------------------------------
 // Tela de Missão Diária.
 //
-// Estado 100% local (useState) por enquanto — ainda não persiste no
-// IndexedDB nem está ligada ao usePlayer()/Status. O modelo de missão
-// daqui (DailyMission, em types/mission-editor.ts) é mais rico que o
-// Mission antigo do usePlayer/storage.ts. Plugar isso no save de verdade
-// é a próxima etapa, depois desse modelo novo validado na tela.
+// As missões são salvas no storage do aparelho (IndexedDB no PWA) a cada
+// alteração — criar, editar, excluir, marcar e mexer no +/-. Ver
+// hooks/useDailyMissions.ts. O modelo (DailyMission, em
+// types/mission-editor.ts) ainda é separado do Mission antigo usado pelo
+// Status/usePlayer.
 // ---------------------------------------------------------------------------
 
-const DEFAULT_MISSIONS: DailyMission[] = [
-  {
-    id: 'seed-situps',
-    title: 'Sit-ups',
-    category: 'diaria',
-    attributes: { strength: 1, agility: 0, intelligence: 0, vitality: 0, perception: 0 },
-    abilityPoints: 0,
-    rewards: { coins: 5, xp: 20 },
-    count: { method: 'numeric', target: 100, progress: 0 },
-    linkedMissionIds: [],
-    completed: false,
-  },
-  {
-    id: 'seed-squats',
-    title: 'Squats',
-    category: 'diaria',
-    attributes: { strength: 1, agility: 0, intelligence: 0, vitality: 0, perception: 0 },
-    abilityPoints: 0,
-    rewards: { coins: 5, xp: 20 },
-    count: { method: 'check', checked: true },
-    linkedMissionIds: [],
-    completed: true,
-  },
-  {
-    id: 'seed-run',
-    title: 'Run',
-    category: 'diaria',
-    attributes: { strength: 0, agility: 1, intelligence: 0, vitality: 0, perception: 0 },
-    abilityPoints: 0,
-    rewards: { coins: 10, xp: 40 },
-    count: { method: 'distance', target: 10, progress: 0 },
-    linkedMissionIds: [],
-    completed: false,
-  },
-  {
-    id: 'seed-compras',
-    title: 'Compras',
-    category: 'diaria',
-    attributes: { strength: 0, agility: 0, intelligence: 1, vitality: 0, perception: 0 },
-    abilityPoints: 0,
-    rewards: { coins: 0, xp: 10 },
-    count: { method: 'text', text: 'gastar -20R' },
-    linkedMissionIds: [],
-    completed: false,
-  },
-];
-
 export function MissionsScreen() {
-  const [missions, setMissions] = useState<DailyMission[]>(DEFAULT_MISSIONS);
+  const { missions, setMissions, loaded } = useDailyMissions();
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingMission, setEditingMission] = useState<DailyMission | null>(null);
   /** Id da missão com a barra de editar/excluir aberta (long-press de 2s). */
@@ -169,6 +132,16 @@ export function MissionsScreen() {
   };
 
   const hasOpenAction = actionRowId !== null;
+
+  // Enquanto o save é lido do disco, evita mostrar a lista vazia (e deixar
+  // o usuário criar uma missão que o load logo em seguida sobrescreveria).
+  if (!loaded) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator color={Hud.glow} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -355,6 +328,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 12,
     paddingBottom: 40,
+  },
+
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // Cabeçalho

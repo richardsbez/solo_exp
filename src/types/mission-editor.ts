@@ -7,8 +7,9 @@ import type { AttributeKey } from '@/types/game';
 // De propósito, é um tipo separado do `Mission` antigo (usePlayer/
 // storage/constants/game.ts) — esse aqui é mais rico (categoria PRINCIPAL/
 // SECUNDARIA/DIARIA, XP por atributo individual em vez de só "+1 num
-// atributo", coins, vínculo entre missões). A ideia é validar esse modelo
-// na tela primeiro e só depois migrar o save de verdade pra ele.
+// atributo", coins, vínculo entre missões). Ele é persistido em uma chave
+// própria do storage (`@solo:daily-missions`, ver services/storage.ts),
+// separada do save antigo, até o Status migrar pra ele.
 // ---------------------------------------------------------------------------
 
 export type MissionCategory = 'principal' | 'secundaria' | 'diaria';
@@ -122,4 +123,130 @@ export function formatCountConfig(count: CountConfig): string {
     default:
       return '';
   }
+}
+
+// ---------------------------------------------------------------------------
+// Persistência: valores padrão e validação do que vem do disco.
+// ---------------------------------------------------------------------------
+
+/** Missões de exemplo da primeira abertura do app (quando ainda não existe
+ * nada salvo). É função, e não constante, pra cada chamada devolver
+ * objetos novos — nada compartilhado por referência entre chamadas. */
+export function createDefaultDailyMissions(): DailyMission[] {
+  const attrs = (partial: Partial<AttributeAllocation>): AttributeAllocation => ({
+    ...createEmptyAttributes(),
+    ...partial,
+  });
+
+  return [
+    {
+      id: 'seed-situps',
+      title: 'Sit-ups',
+      category: 'diaria',
+      attributes: attrs({ strength: 1 }),
+      abilityPoints: 0,
+      rewards: { coins: 5, xp: 20 },
+      count: { method: 'numeric', target: 100, progress: 0 },
+      linkedMissionIds: [],
+      completed: false,
+    },
+    {
+      id: 'seed-squats',
+      title: 'Squats',
+      category: 'diaria',
+      attributes: attrs({ strength: 1 }),
+      abilityPoints: 0,
+      rewards: { coins: 5, xp: 20 },
+      count: { method: 'check', checked: true },
+      linkedMissionIds: [],
+      completed: true,
+    },
+    {
+      id: 'seed-run',
+      title: 'Run',
+      category: 'diaria',
+      attributes: attrs({ agility: 1 }),
+      abilityPoints: 0,
+      rewards: { coins: 10, xp: 40 },
+      count: { method: 'distance', target: 10, progress: 0 },
+      linkedMissionIds: [],
+      completed: false,
+    },
+    {
+      id: 'seed-compras',
+      title: 'Compras',
+      category: 'diaria',
+      attributes: attrs({ intelligence: 1 }),
+      abilityPoints: 0,
+      rewards: { coins: 0, xp: 10 },
+      count: { method: 'text', text: 'gastar -20R' },
+      linkedMissionIds: [],
+      completed: false,
+    },
+  ];
+}
+
+const CATEGORIES: MissionCategory[] = ['principal', 'secundaria', 'diaria'];
+const COUNT_METHODS: CountMethod[] = ['numeric', 'text', 'check', 'distance'];
+
+function finiteNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+/** Valida UMA missão lida do disco, preenchendo campos que faltem (saves
+ * de versões antigas). Devolve null se não der pra aproveitar. */
+export function normalizeDailyMission(raw: unknown): DailyMission | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const m = raw as Record<string, any>;
+  if (typeof m.id !== 'string' || m.id === '' || typeof m.title !== 'string') return null;
+
+  const attributes = createEmptyAttributes();
+  for (const key of Object.keys(attributes) as AttributeKey[]) {
+    attributes[key] = finiteNumber(m.attributes?.[key]);
+  }
+
+  const rawCount = (m.count ?? {}) as Record<string, unknown>;
+  const method: CountMethod = COUNT_METHODS.includes(rawCount.method as CountMethod)
+    ? (rawCount.method as CountMethod)
+    : 'check';
+  const count: CountConfig = { method };
+  if (typeof rawCount.target === 'number') count.target = finiteNumber(rawCount.target);
+  if (typeof rawCount.progress === 'number') count.progress = finiteNumber(rawCount.progress);
+  if (typeof rawCount.text === 'string') count.text = rawCount.text;
+  if (typeof rawCount.checked === 'boolean') count.checked = rawCount.checked;
+
+  return {
+    id: m.id,
+    title: m.title,
+    category: CATEGORIES.includes(m.category) ? m.category : 'diaria',
+    attributes,
+    abilityPoints: finiteNumber(m.abilityPoints),
+    rewards: {
+      coins: finiteNumber(m.rewards?.coins),
+      xp: finiteNumber(m.rewards?.xp),
+    },
+    count,
+    linkedMissionIds: Array.isArray(m.linkedMissionIds)
+      ? m.linkedMissionIds.filter((id: unknown): id is string => typeof id === 'string')
+      : [],
+    completed: m.completed === true,
+  };
+}
+
+/** Valida a lista inteira lida do disco. Devolve null se não for uma lista
+ * (nada salvo ou dado corrompido). Uma lista vazia `[]` é válida — é o caso
+ * de quem apagou todas as missões, e NÃO deve voltar a mostrar os exemplos.
+ * Também remove vínculos que apontam pra missões que não existem mais. */
+export function normalizeDailyMissions(raw: unknown): DailyMission[] | null {
+  if (!Array.isArray(raw)) return null;
+
+  const missions = raw
+    .map(normalizeDailyMission)
+    .filter((mission): mission is DailyMission => mission !== null);
+
+  const ids = new Set(missions.map((mission) => mission.id));
+  return missions.map((mission) => ({
+    ...mission,
+    linkedMissionIds: mission.linkedMissionIds.filter((id) => ids.has(id)),
+  }));
 }
